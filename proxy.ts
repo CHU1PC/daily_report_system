@@ -9,10 +9,8 @@ export async function proxy(request: NextRequest) {
 
     console.log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
 
-    let response = NextResponse.next({
-      request: {
-        headers: request.headers,
-      },
+    let supabaseResponse = NextResponse.next({
+      request,
     })
 
     const supabase = createServerClient(
@@ -24,12 +22,8 @@ export async function proxy(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-            response = NextResponse.next({
-              request,
-            })
             cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options)
+              supabaseResponse.cookies.set(name, value, options)
             )
           },
         },
@@ -51,7 +45,7 @@ export async function proxy(request: NextRequest) {
     }
 
     console.log('[Proxy] Allowing request')
-    return response
+    return supabaseResponse
   } catch (error) {
     console.error('[Proxy] Error in authentication middleware:', error)
     // エラーが発生しても、リクエストを通す（認証エラーはアプリ側で処理）
