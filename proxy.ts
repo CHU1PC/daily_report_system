@@ -3,6 +3,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
   try {
+    // 認証が不要なパス
+    const publicPaths = ['/login', '/signup', '/auth', '/pending-approval']
+    const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
+
+    console.log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
+
     let response = NextResponse.next({
       request: {
         headers: request.headers,
@@ -34,17 +40,17 @@ export async function proxy(request: NextRequest) {
     // @ts-ignore - Type issue with @supabase/ssr 0.7.0
     const { data: { user } } = await supabase.auth.getUser()
 
-    // 認証が不要なパス
-    const publicPaths = ['/login', '/signup', '/auth', '/pending-approval']
-    const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
+    console.log('[Proxy] User:', user ? 'authenticated' : 'not authenticated')
 
     // 認証が必要なルートへのアクセス
     if (!user && !isPublicPath) {
+      console.log('[Proxy] Redirecting to /login')
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
 
+    console.log('[Proxy] Allowing request')
     return response
   } catch (error) {
     console.error('[Proxy] Error in authentication middleware:', error)
