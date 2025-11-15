@@ -27,30 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // localStorageから初期値を読み込む（SSR対応）
-  const [isApproved, setIsApproved] = useState<boolean | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('isApproved')
-      return stored ? stored === 'true' : null
-    }
-    return null
-  })
+  // 常にnullで初期化し、DBから最新の承認状態を取得するまで待つ
+  // localStorageの古い値に頼らないことで、誤ったリダイレクトを防ぐ
+  const [isApproved, setIsApproved] = useState<boolean | null>(null)
+  const [role, setRole] = useState<string | null>(null)
+  const [userName, setUserName] = useState<string | null>(null)
 
-  const [role, setRole] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('userRole')
-    }
-    return null
-  })
-
-  const [userName, setUserName] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('userName')
-    }
-    return null
-  })
-
-  const [initialCheckDone, setInitialCheckDone] = useState(false)
   const supabase = createClient()
 
   // 管理者かどうかを判定
@@ -119,15 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("✅ Approval status retrieved:", approved, "role:", userRole, "name:", name)
       console.log("📝 Setting isApproved state to:", approved, "and role to:", userRole)
 
-      // localStorageにも保存して、ページ遷移時に値が保持されるようにする
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('isApproved', String(approved))
-        localStorage.setItem('userRole', userRole)
-        if (name) {
-          localStorage.setItem('userName', name)
-        }
-      }
-
       setIsApproved(approved)
       setRole(userRole)
       setUserName(name)
@@ -165,9 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error("💥 Error checking session:", error)
       } finally {
         if (mounted) {
-          console.log("🏁 Setting loading to false and initialCheckDone to true")
+          console.log("🏁 Setting loading to false")
           setLoading(false)
-          setInitialCheckDone(true)
         }
       }
     }
@@ -180,15 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!mounted) return
 
-      // 初回チェック完了前はスキップ（checkSession()で処理済み）
-      if (!initialCheckDone) {
-        console.log("⏭️ Skipping auth state change (initial check not done)")
-        return
-      }
-
-      // 初回チェック完了後は、TOKEN_REFRESHEDとINITIAL_SESSIONイベントはスキップ
-      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        console.log(`⏭️ Skipping approval check for ${event} (already checked)`)
+      // TOKEN_REFRESHEDイベントのみスキップ（トークン更新では承認状態を再確認する必要がない）
+      if (event === 'TOKEN_REFRESHED') {
+        console.log(`⏭️ Skipping approval check for ${event} (token refresh only)`)
         setSession(session)
         setUser(session?.user ?? null)
         return
@@ -202,19 +168,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsApproved(null)
         setRole(null)
         setUserName(null)
-
-        // localStorageもクリア
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('isApproved')
-          localStorage.removeItem('userRole')
-          localStorage.removeItem('userName')
-        }
-
         return
       }
 
-      // SIGNED_INイベントの場合のみ承認状態を再確認
-      // ただし、既に承認状態が取得済みの場合はリセットしない
+      // INITIAL_SESSION, SIGNED_INなどのイベントで承認状態を確認
       setSession(session)
       setUser(session?.user ?? null)
 
@@ -366,11 +323,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 状態を更新
       setUserName(name)
-
-      // localStorageも更新
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('userName', name)
-      }
     } catch (error) {
       console.error('Error updating user name:', error)
       throw error
