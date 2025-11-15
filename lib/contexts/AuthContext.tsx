@@ -27,28 +27,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // localStorageから初期値を読み込む（SSR対応）
-  const [isApproved, setIsApproved] = useState<boolean | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('isApproved')
-      return stored ? stored === 'true' : null
-    }
-    return null
-  })
-
-  const [role, setRole] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('userRole')
-    }
-    return null
-  })
-
-  const [userName, setUserName] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('userName')
-    }
-    return null
-  })
+  // 常にnullで初期化し、DBから最新の承認状態を取得するまで待つ
+  // localStorageの古い値に頼らないことで、誤ったリダイレクトを防ぐ
+  const [isApproved, setIsApproved] = useState<boolean | null>(null)
+  const [role, setRole] = useState<string | null>(null)
+  const [userName, setUserName] = useState<string | null>(null)
 
   const [initialCheckDone, setInitialCheckDone] = useState(false)
   const supabase = createClient()
@@ -118,15 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const name = data.name || null
       console.log("✅ Approval status retrieved:", approved, "role:", userRole, "name:", name)
       console.log("📝 Setting isApproved state to:", approved, "and role to:", userRole)
-
-      // localStorageにも保存して、ページ遷移時に値が保持されるようにする
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('isApproved', String(approved))
-        localStorage.setItem('userRole', userRole)
-        if (name) {
-          localStorage.setItem('userName', name)
-        }
-      }
 
       setIsApproved(approved)
       setRole(userRole)
@@ -202,14 +176,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsApproved(null)
         setRole(null)
         setUserName(null)
-
-        // localStorageもクリア
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('isApproved')
-          localStorage.removeItem('userRole')
-          localStorage.removeItem('userName')
-        }
-
         return
       }
 
@@ -366,11 +332,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 状態を更新
       setUserName(name)
-
-      // localStorageも更新
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('userName', name)
-      }
     } catch (error) {
       console.error('Error updating user name:', error)
       throw error
