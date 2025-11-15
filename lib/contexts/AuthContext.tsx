@@ -154,15 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!mounted) return
 
-      // 初回チェック完了前はスキップ（checkSession()で処理済み）
-      if (!initialCheckDone) {
-        console.log("⏭️ Skipping auth state change (initial check not done)")
-        return
-      }
-
-      // 初回チェック完了後は、TOKEN_REFRESHEDとINITIAL_SESSIONイベントはスキップ
-      if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        console.log(`⏭️ Skipping approval check for ${event} (already checked)`)
+      // TOKEN_REFRESHEDイベントのみスキップ（トークン更新では承認状態を再確認する必要がない）
+      if (event === 'TOKEN_REFRESHED') {
+        console.log(`⏭️ Skipping approval check for ${event} (token refresh only)`)
         setSession(session)
         setUser(session?.user ?? null)
         return
@@ -179,8 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return
       }
 
-      // SIGNED_INイベントの場合のみ承認状態を再確認
-      // ただし、既に承認状態が取得済みの場合はリセットしない
+      // INITIAL_SESSION, SIGNED_INなどのイベントで承認状態を確認
       setSession(session)
       setUser(session?.user ?? null)
 
