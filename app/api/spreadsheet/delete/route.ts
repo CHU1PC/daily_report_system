@@ -2,6 +2,8 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { deleteTimeEntryFromSheet } from '@/lib/google-sheets'
 
+export const runtime = 'nodejs'
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()

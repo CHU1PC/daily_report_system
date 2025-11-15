@@ -6,6 +6,7 @@ export function getGoogleSheetsClient() {
     // 環境変数から認証情報を取得
     const credentials = process.env.GOOGLE_SERVICE_ACCOUNT_KEY
     if (!credentials) {
+      console.warn('GOOGLE_SERVICE_ACCOUNT_KEY is not set - Google Sheets integration disabled')
       throw new Error('GOOGLE_SERVICE_ACCOUNT_KEY is not set')
     }
 
