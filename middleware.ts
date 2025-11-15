@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -27,7 +28,7 @@ export async function middleware(request: NextRequest) {
         },
       },
     }
-  )
+  ) as SupabaseClient
 
   // Refresh the Auth token
   const { data: { user } } = await supabase.auth.getUser()
