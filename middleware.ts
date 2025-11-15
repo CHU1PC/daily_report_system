@@ -29,9 +29,8 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh the Auth token and validate it securely
-  const { data } = await supabase.auth.getClaims()
-  const user = data?.claims?.sub ? data : null
+  // Refresh the Auth token
+  const { data: { user } } = await supabase.auth.getUser()
 
   // 認証が不要なパス
   const publicPaths = ['/login', '/signup', '/auth', '/pending-approval']
