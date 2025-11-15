@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createServerSupabaseClient()
 
     // Exchange the code for a session
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error) {
       console.error('❌ Error exchanging code for session:', error)
@@ -25,9 +25,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${baseUrl}/login?error=認証に失敗しました`)
     }
 
+    // 承認状態を確認
+    if (data.user) {
+      const { data: approvalData } = await supabase
+        .from('user_approvals')
+        .select('approved')
+        .eq('user_id', data.user.id)
+        .maybeSingle()
+
+      if (approvalData && approvalData.approved) {
+        console.log('✅ User is approved, redirecting to:', `${baseUrl}/`)
+        return NextResponse.redirect(`${baseUrl}/`)
+      } else {
+        console.log('⏳ User is not approved yet, redirecting to pending-approval')
+        return NextResponse.redirect(`${baseUrl}/pending-approval`)
+      }
+    }
+
     console.log('✅ Code exchange successful, redirecting to:', `${baseUrl}/`)
-    // 認証成功後、ホームページにリダイレクト
-    // AuthContextが承認状態をチェックして適切にリダイレクトする
     return NextResponse.redirect(`${baseUrl}/`)
   }
 
