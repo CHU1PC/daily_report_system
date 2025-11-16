@@ -69,43 +69,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       console.log("👤 Using user:", currentUserEmail, "ID:", currentUserId)
-      console.log("📊 Querying user_approvals table for user_id:", currentUserId)
+      console.log("📊 Fetching approval status from API for user_id:", currentUserId)
 
-      // タイムアウト付きでクエリを実行（10秒）
+      // APIルートを通じて承認状態を取得（RLSの問題を回避）
       const queryStartTime = Date.now()
-      const queryPromise = supabase
-        .from("user_approvals")
-        .select("approved, role, name")
-        .eq("user_id", currentUserId)
-        .maybeSingle()
-
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          console.error("⏱️ Query timeout - took longer than 10 seconds")
-          reject(new Error('Query timeout after 10 seconds'))
-        }, 10000)
+      const response = await fetch('/api/user/approval-status', {
+        method: 'GET',
+        credentials: 'include', // Cookieを含める
       })
 
-      const result = await Promise.race([queryPromise, timeoutPromise]) as any
       const queryDuration = Date.now() - queryStartTime
-      console.log(`⏱️ Query completed in ${queryDuration}ms`)
+      console.log(`⏱️ API call completed in ${queryDuration}ms`)
 
-      const { data, error } = result
-
-      console.log("📊 Query result - data:", data, "error:", error)
-
-      if (error) {
-        console.error("❌ Error checking approval status:", error)
-        console.error("❌ Error details:", JSON.stringify(error, null, 2))
+      if (!response.ok) {
+        console.error("❌ Error fetching approval status:", response.status, response.statusText)
         setIsApproved(false)
         setRole(null)
         setUserName(null)
         return false
       }
 
-      // レコードが存在しない場合は未承認とみなす
-      if (!data) {
-        console.warn("⚠️ No approval record found for user:", currentUserEmail)
+      const data = await response.json()
+      console.log("📊 API response - data:", data)
+
+      if (data.error) {
+        console.error("❌ Error in API response:", data.error)
         setIsApproved(false)
         setRole(null)
         setUserName(null)
