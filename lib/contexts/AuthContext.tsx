@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, useMemo } from "react"
+import { createContext, useContext, useEffect, useState, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase"
 import type { User, Session } from "@supabase/supabase-js"
 
@@ -36,9 +36,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Supabaseクライアントをメモ化（再レンダリング時に再作成されないようにする）
   const supabase = useMemo(() => createClient(), [])
 
-  // 承認状態チェックの重複呼び出しを防ぐ
-  const [checkingUserId, setCheckingUserId] = useState<string | null>(null)
-  const [lastCheckedUserId, setLastCheckedUserId] = useState<string | null>(null)
+  // 承認状態チェックの重複呼び出しを防ぐ（useRefで同期的にチェック）
+  const checkingUserIdRef = useRef<string | null>(null)
+  const approvalCacheRef = useRef<{ userId: string; approved: boolean; role: string; name: string | null } | null>(null)
 
   // 管理者かどうかを判定
   const isAdmin = role === 'admin'
@@ -73,19 +73,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // 既にこのユーザーIDをチェック中の場合はスキップ
-      if (checkingUserId === currentUserId) {
+      if (checkingUserIdRef.current === currentUserId) {
         console.log("⏭️ Already checking approval for user:", currentUserId, "- skipping duplicate call")
         return isApproved ?? false
       }
 
-      // 最近チェック済みのユーザーの場合はキャッシュを返す
-      if (lastCheckedUserId === currentUserId && isApproved !== null) {
-        console.log("📦 Using cached approval status for user:", currentUserId, "- approved:", isApproved)
-        return isApproved
+      // キャッシュがあればそれを返す
+      const cache = approvalCacheRef.current
+      if (cache && cache.userId === currentUserId) {
+        console.log("📦 Using cached approval status for user:", currentUserId, "- approved:", cache.approved)
+        setIsApproved(cache.approved)
+        setRole(cache.role)
+        setUserName(cache.name)
+        return cache.approved
       }
 
       console.log("👤 Using user:", currentUserEmail, "ID:", currentUserId)
-      setCheckingUserId(currentUserId)
+      checkingUserIdRef.current = currentUserId
       console.log("📊 Fetching approval status from API for user_id:", currentUserId)
 
       // APIルートを通じて承認状態を取得（RLSの問題を回避）
@@ -127,15 +131,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRole(userRole)
       setUserName(name)
 
-      // チェック完了後、フラグを更新
-      setLastCheckedUserId(currentUserId)
-      setCheckingUserId(null)
+      // チェック完了後、キャッシュを更新
+      approvalCacheRef.current = {
+        userId: currentUserId,
+        approved,
+        role: userRole,
+        name,
+      }
+      checkingUserIdRef.current = null
 
       return approved
     } catch (error) {
       console.error("💥 Error in checkApprovalStatus:", error)
       setIsApproved(false)
-      setCheckingUserId(null)
+      checkingUserIdRef.current = null
       return false
     }
   }
