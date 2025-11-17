@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   try {
     // 認証が不要なパス
-    const publicPaths = ['/login', '/signup', '/auth', '/pending-approval']
+    const publicPaths = ['/login', '/signup', '/auth', '/pending-approval', '/api']
     const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
     console.log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
