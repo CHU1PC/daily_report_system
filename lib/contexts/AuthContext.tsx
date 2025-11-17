@@ -36,6 +36,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Supabaseクライアントをメモ化（再レンダリング時に再作成されないようにする）
   const supabase = useMemo(() => createClient(), [])
 
+  // 承認状態チェックの重複呼び出しを防ぐ
+  const [checkingUserId, setCheckingUserId] = useState<string | null>(null)
+  const [lastCheckedUserId, setLastCheckedUserId] = useState<string | null>(null)
+
   // 管理者かどうかを判定
   const isAdmin = role === 'admin'
 
@@ -68,7 +72,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         currentUserEmail = user.email
       }
 
+      // 既にこのユーザーIDをチェック中の場合はスキップ
+      if (checkingUserId === currentUserId) {
+        console.log("⏭️ Already checking approval for user:", currentUserId, "- skipping duplicate call")
+        return isApproved ?? false
+      }
+
+      // 最近チェック済みのユーザーの場合はキャッシュを返す
+      if (lastCheckedUserId === currentUserId && isApproved !== null) {
+        console.log("📦 Using cached approval status for user:", currentUserId, "- approved:", isApproved)
+        return isApproved
+      }
+
       console.log("👤 Using user:", currentUserEmail, "ID:", currentUserId)
+      setCheckingUserId(currentUserId)
       console.log("📊 Fetching approval status from API for user_id:", currentUserId)
 
       // APIルートを通じて承認状態を取得（RLSの問題を回避）
@@ -109,10 +126,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsApproved(approved)
       setRole(userRole)
       setUserName(name)
+
+      // チェック完了後、フラグを更新
+      setLastCheckedUserId(currentUserId)
+      setCheckingUserId(null)
+
       return approved
     } catch (error) {
       console.error("💥 Error in checkApprovalStatus:", error)
       setIsApproved(false)
+      setCheckingUserId(null)
       return false
     }
   }
