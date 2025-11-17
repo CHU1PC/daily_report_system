@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -13,8 +13,21 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const { signIn, signInWithGoogle, isApproved } = useAuth()
+  const { signIn, signInWithGoogle, user, isApproved, loading: authLoading } = useAuth()
   const router = useRouter()
+
+  // 既にログイン済みの場合はリダイレクト
+  useEffect(() => {
+    if (!authLoading && user) {
+      console.log("📍 Login page - Already logged in, redirecting...", { user: user.email, isApproved })
+      if (isApproved === true) {
+        router.push("/")
+      } else if (isApproved === false) {
+        router.push("/pending-approval")
+      }
+      // isApproved === null の場合は承認状態の確認中なので待つ
+    }
+  }, [user, isApproved, authLoading, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
