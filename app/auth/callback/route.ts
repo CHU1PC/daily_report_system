@@ -8,6 +8,11 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
+    // レスポンスオブジェクトを作成（Cookieを設定するため）
+    let response = NextResponse.next({
+      request,
+    })
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -17,8 +22,10 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll()
           },
           setAll(cookiesToSet) {
-            // Cookie setting is handled by proxy/middleware
-            // This is intentionally left empty per Supabase SSR docs
+            // レスポンスにCookieを設定
+            cookiesToSet.forEach(({ name, value, options }) =>
+              response.cookies.set(name, value, options)
+            )
           },
         },
       }
@@ -41,10 +48,26 @@ export async function GET(request: NextRequest) {
 
       if (approvalData && approvalData.approved) {
         console.log('✅ User is approved, redirecting to:', `${origin}/`)
-        return NextResponse.redirect(`${origin}${next}`)
+        // リダイレクトレスポンスを作成し、既存のCookieを引き継ぐ
+        const redirectResponse = NextResponse.redirect(`${origin}${next}`)
+
+        // exchangeCodeForSessionで設定されたCookieをコピー
+        response.cookies.getAll().forEach(cookie => {
+          redirectResponse.cookies.set(cookie.name, cookie.value)
+        })
+
+        return redirectResponse
       } else {
         console.log('⏳ User is not approved yet, redirecting to pending-approval')
-        return NextResponse.redirect(`${origin}/pending-approval`)
+        // リダイレクトレスポンスを作成し、既存のCookieを引き継ぐ
+        const redirectResponse = NextResponse.redirect(`${origin}/pending-approval`)
+
+        // exchangeCodeForSessionで設定されたCookieをコピー
+        response.cookies.getAll().forEach(cookie => {
+          redirectResponse.cookies.set(cookie.name, cookie.value)
+        })
+
+        return redirectResponse
       }
     }
 
