@@ -9,6 +9,12 @@ export async function proxy(request: NextRequest) {
 
     console.log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
 
+    // OAuth callbackは認証チェックをスキップして直接通す
+    if (isPublicPath) {
+      console.log('[Proxy] Allowing request (public path)')
+      return NextResponse.next({ request })
+    }
+
     let supabaseResponse = NextResponse.next({
       request,
     })
@@ -37,7 +43,7 @@ export async function proxy(request: NextRequest) {
     console.log('[Proxy] User:', user ? 'authenticated' : 'not authenticated')
 
     // 認証が必要なルートへのアクセス
-    if (!user && !isPublicPath) {
+    if (!user) {
       console.log('[Proxy] Redirecting to /login')
       const url = request.nextUrl.clone()
       url.pathname = '/login'
