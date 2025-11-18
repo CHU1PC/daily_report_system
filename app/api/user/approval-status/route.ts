@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
+// サーバーサイドログ用（本番でも重要なログは残す）
+const isDev = process.env.NODE_ENV === 'development'
+const log = (...args: any[]) => isDev && console.log(...args)
+const logError = (...args: any[]) => console.error(...args)
+
 export async function GET() {
   try {
     const cookieStore = await cookies()
@@ -27,10 +32,14 @@ export async function GET() {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json(
+      log('[Approval API] Not authenticated:', authError?.message)
+      const response = NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
       )
+      // 認証エラーも短時間キャッシュ（不要な再試行を防ぐ）
+      response.headers.set('Cache-Control', 'private, max-age=60')
+      return response
     }
 
     // 承認状態を取得
@@ -41,7 +50,8 @@ export async function GET() {
       .maybeSingle()
 
     if (error) {
-      console.error('Error fetching approval status:', error)
+      logError('[Approval API] Error fetching approval status:', error)
+      // エラー時はキャッシュしない（即座に再試行できるように）
       return NextResponse.json(
         { error: 'Failed to fetch approval status' },
         { status: 500 }
@@ -50,6 +60,7 @@ export async function GET() {
 
     // レコードが存在しない場合は未承認
     if (!data) {
+      log('[Approval API] No approval record found for user:', user.id)
       const response = NextResponse.json({
         approved: false,
         role: 'user',
@@ -60,6 +71,7 @@ export async function GET() {
       return response
     }
 
+    log('[Approval API] Approval status retrieved:', { approved: data.approved, role: data.role })
     const response = NextResponse.json({
       approved: data.approved ?? false,
       role: data.role ?? 'user',
@@ -69,7 +81,8 @@ export async function GET() {
     response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=60')
     return response
   } catch (error) {
-    console.error('Error in approval status API:', error)
+    logError('[Approval API] Error in approval status API:', error)
+    // エラー時はキャッシュしない（即座に再試行できるように）
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
