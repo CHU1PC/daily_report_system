@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase"
 import type { Task, TimeEntry } from "@/lib/types"
 import { useAuth } from "@/lib/contexts/AuthContext"
+import { logger } from "@/lib/logger"
 
 export function useSupabase() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -359,27 +360,36 @@ export function useSupabase() {
 
     // Supabase モード
     try {
-      // 認証されたユーザーを取得
-      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser()
-
-      console.log('[addTimeEntry] Current authenticated user:', currentUser?.id)
-      console.log('[addTimeEntry] Auth error:', authError)
-
-      if (authError || !currentUser) {
-        console.error('[addTimeEntry] User not authenticated')
+      // useAuthから既に取得済みのユーザー情報を使用（getUser()の1-2秒APIコールを削減）
+      if (!user) {
+        logger.error('[addTimeEntry] User not authenticated')
         throw new Error('User must be authenticated to create time entries')
       }
 
+      // 楽観的UI更新: 一時的なIDでUIに即座に反映
+      const optimisticId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const optimisticEntry: TimeEntry = {
+        id: optimisticId,
+        taskId: entry.taskId,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        comment: entry.comment,
+        date: entry.date,
+      }
+
+      // UIを即座に更新（ユーザーには瞬時に反映される）
+      setTimeEntries((prev) => [optimisticEntry, ...prev])
+      logger.log('[addTimeEntry] Optimistically added entry to UI:', optimisticId)
+
+      // バックグラウンドでDB保存（awaitで完了を待つ）
       const insertData: Record<string, unknown> = {
         task_id: entry.taskId,
         start_time: entry.startTime,
         end_time: entry.endTime,
         comment: entry.comment,
         date: entry.date,
-        user_id: currentUser.id, // 認証されたユーザーIDを必ず設定
+        user_id: user.id,
       }
-
-      console.log('[addTimeEntry] Inserting time entry:', insertData)
 
       const { data, error } = await supabase
         .from("time_entries")
@@ -387,11 +397,24 @@ export function useSupabase() {
         .select()
         .single()
 
-      console.log('[addTimeEntry] Insert result - data:', data, 'error:', error)
+      if (error) {
+        // エラー時は楽観的に追加したエントリを削除
+        logger.error('[addTimeEntry] Failed to save, rolling back optimistic update')
+        setTimeEntries((prev) => prev.filter(e => e.id !== optimisticId))
+        throw error
+      }
 
-      if (error) throw error
+      // 保存成功: 一時IDを実際のIDに置き換え
+      setTimeEntries((prev) =>
+        prev.map(e => e.id === optimisticId ? {
+          ...e,
+          id: data.id,
+        } : e)
+      )
 
-      const newEntry: TimeEntry = {
+      logger.log('[addTimeEntry] Successfully saved with ID:', data.id)
+
+      return {
         id: data.id,
         taskId: data.task_id,
         startTime: data.start_time,
@@ -399,14 +422,8 @@ export function useSupabase() {
         comment: data.comment || "",
         date: data.date,
       }
-
-      console.log('[addTimeEntry] New entry created:', newEntry)
-      console.log('[addTimeEntry] Entry saved with user_id:', data.user_id, '(auth user.id:', currentUser.id, ')')
-
-      setTimeEntries((prev) => [newEntry, ...prev])
-      return newEntry
     } catch (err) {
-      console.error("Error adding time entry:", err)
+      logger.error("Error adding time entry:", err)
       throw err
     }
   }
