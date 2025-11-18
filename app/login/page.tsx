@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/contexts/AuthContext"
+import { logger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
@@ -19,7 +20,7 @@ export default function LoginPage() {
   // 既にログイン済みの場合はリダイレクト
   useEffect(() => {
     if (!authLoading && user) {
-      console.log("📍 Login page - Already logged in, redirecting...", { user: user.email, isApproved })
+      logger.log("📍 Login page - Already logged in, redirecting...", { user: user.email, isApproved })
       if (isApproved === true) {
         router.push("/")
       } else if (isApproved === false) {

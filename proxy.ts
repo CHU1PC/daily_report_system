@@ -1,17 +1,21 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// サーバーサイドログ用（本番でも重要なログは残す）
+const isDev = process.env.NODE_ENV === 'development'
+const log = (...args: any[]) => isDev && console.log(...args)
+
 export async function proxy(request: NextRequest) {
   try {
     // 認証が不要なパス
     const publicPaths = ['/login', '/signup', '/auth', '/pending-approval', '/api']
     const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
-    console.log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
+    log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
 
     // OAuth callbackは認証チェックをスキップして直接通す
     if (isPublicPath) {
-      console.log('[Proxy] Allowing request (public path)')
+      log('[Proxy] Allowing request (public path)')
       return NextResponse.next({ request })
     }
 
@@ -40,17 +44,17 @@ export async function proxy(request: NextRequest) {
     // @ts-ignore - Type issue with @supabase/ssr 0.7.0
     const { data: { user } } = await supabase.auth.getUser()
 
-    console.log('[Proxy] User:', user ? 'authenticated' : 'not authenticated')
+    log('[Proxy] User:', user ? 'authenticated' : 'not authenticated')
 
     // 認証が必要なルートへのアクセス
     if (!user) {
-      console.log('[Proxy] Redirecting to /login')
+      log('[Proxy] Redirecting to /login')
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
     }
 
-    console.log('[Proxy] Allowing request')
+    log('[Proxy] Allowing request')
     return supabaseResponse
   } catch (error) {
     console.error('[Proxy] Error in authentication middleware:', error)

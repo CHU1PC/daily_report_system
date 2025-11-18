@@ -2,12 +2,16 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { type NextRequest } from 'next/server'
 
+// サーバーサイドログ用（本番でも重要なログは残す）
+const isDev = process.env.NODE_ENV === 'development'
+const log = (...args: any[]) => isDev && console.log(...args)
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/'
 
-  console.log('[OAuth Callback] Request received:', { code: code ? 'present' : 'missing', next, origin })
+  log('[OAuth Callback] Request received:', { code: code ? 'present' : 'missing', next, origin })
 
   if (code) {
     // レスポンスオブジェクトを作成（Cookieを設定するため）
@@ -35,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     const { error, data } = await supabase.auth.exchangeCodeForSession(code)
 
-    console.log('[OAuth Callback] exchangeCodeForSession result:', {
+    log('[OAuth Callback] exchangeCodeForSession result:', {
       hasError: !!error,
       hasUser: !!data?.user,
       userId: data?.user?.id
@@ -54,14 +58,14 @@ export async function GET(request: NextRequest) {
         .eq('user_id', data.user.id)
         .maybeSingle()
 
-      console.log('[OAuth Callback] Approval check:', {
+      log('[OAuth Callback] Approval check:', {
         hasApprovalData: !!approvalData,
         isApproved: approvalData?.approved,
         approvalError
       })
 
       if (approvalData && approvalData.approved) {
-        console.log('✅ User is approved, redirecting to:', `${origin}/`)
+        log('✅ User is approved, redirecting to:', `${origin}/`)
         // リダイレクトレスポンスを作成し、既存のCookieを引き継ぐ
         const redirectResponse = NextResponse.redirect(`${origin}${next}`)
 
@@ -85,11 +89,11 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log('[OAuth Callback] No user found in data, redirecting to:', `${origin}${next}`)
+    log('[OAuth Callback] No user found in data, redirecting to:', `${origin}${next}`)
     return NextResponse.redirect(`${origin}${next}`)
   }
 
   // codeがない場合はログインページにリダイレクト
-  console.log('[OAuth Callback] No code parameter, redirecting to /login')
+  log('[OAuth Callback] No code parameter, redirecting to /login')
   return NextResponse.redirect(`${origin}/login`)
 }

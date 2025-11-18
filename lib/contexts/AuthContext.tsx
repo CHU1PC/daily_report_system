@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useMemo, useRef } from "react"
 import { createClient } from "@/lib/supabase"
+import { logger } from "@/lib/logger"
 import type { User, Session } from "@supabase/supabase-js"
 
 interface AuthContextType {
@@ -45,25 +46,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ユーザーの承認状態を確認
   const checkApprovalStatus = async (userId?: string, userEmail?: string): Promise<boolean> => {
-    console.log("🔍 checkApprovalStatus called with userId:", userId, "email:", userEmail)
+    logger.log("🔍 checkApprovalStatus called with userId:", userId, "email:", userEmail)
     try {
       // パラメータでuserIdが渡されていればそれを使う、なければauth.getUser()を呼ぶ
       let currentUserId = userId
       let currentUserEmail = userEmail
 
       if (!currentUserId) {
-        console.log("📡 No userId provided, calling supabase.auth.getUser()...")
+        logger.log("📡 No userId provided, calling supabase.auth.getUser()...")
         const { data: { user }, error: authError } = await supabase.auth.getUser()
-        console.log("📡 getUser response:", { user: user?.email, error: authError })
+        logger.log("📡 getUser response:", { user: user?.email, error: authError })
 
         if (authError) {
-          console.error("❌ Auth error:", authError)
+          logger.error("❌ Auth error:", authError)
           setIsApproved(null)
           return false
         }
 
         if (!user) {
-          console.log("❌ No user found, setting isApproved to null")
+          logger.log("❌ No user found, setting isApproved to null")
           setIsApproved(null)
           return false
         }
@@ -74,23 +75,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 既にこのユーザーIDをチェック中の場合はスキップ
       if (checkingUserIdRef.current === currentUserId) {
-        console.log("⏭️ Already checking approval for user:", currentUserId, "- skipping duplicate call")
+        logger.log("⏭️ Already checking approval for user:", currentUserId, "- skipping duplicate call")
         return isApproved ?? false
       }
 
       // キャッシュがあればそれを返す
       const cache = approvalCacheRef.current
       if (cache && cache.userId === currentUserId) {
-        console.log("📦 Using cached approval status for user:", currentUserId, "- approved:", cache.approved)
+        logger.log("📦 Using cached approval status for user:", currentUserId, "- approved:", cache.approved)
         setIsApproved(cache.approved)
         setRole(cache.role)
         setUserName(cache.name)
         return cache.approved
       }
 
-      console.log("👤 Using user:", currentUserEmail, "ID:", currentUserId)
+      logger.log("👤 Using user:", currentUserEmail, "ID:", currentUserId)
       checkingUserIdRef.current = currentUserId
-      console.log("📊 Fetching approval status from API for user_id:", currentUserId)
+      logger.log("📊 Fetching approval status from API for user_id:", currentUserId)
 
       // APIルートを通じて承認状態を取得（RLSの問題を回避）
       const queryStartTime = Date.now()
@@ -100,10 +101,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       const queryDuration = Date.now() - queryStartTime
-      console.log(`⏱️ API call completed in ${queryDuration}ms`)
+      logger.log(`⏱️ API call completed in ${queryDuration}ms`)
 
       if (!response.ok) {
-        console.error("❌ Error fetching approval status:", response.status, response.statusText)
+        logger.error("❌ Error fetching approval status:", response.status, response.statusText)
         setIsApproved(false)
         setRole(null)
         setUserName(null)
@@ -111,10 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = await response.json()
-      console.log("📊 API response - data:", data)
+      logger.log("📊 API response - data:", data)
 
       if (data.error) {
-        console.error("❌ Error in API response:", data.error)
+        logger.error("❌ Error in API response:", data.error)
         setIsApproved(false)
         setRole(null)
         setUserName(null)
@@ -124,8 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const approved = data.approved ?? false
       const userRole = data.role ?? 'user'
       const name = data.name || null
-      console.log("✅ Approval status retrieved:", approved, "role:", userRole, "name:", name)
-      console.log("📝 Setting isApproved state to:", approved, "and role to:", userRole)
+      logger.log("✅ Approval status retrieved:", approved, "role:", userRole, "name:", name)
+      logger.log("📝 Setting isApproved state to:", approved, "and role to:", userRole)
 
       setIsApproved(approved)
       setRole(userRole)
@@ -142,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return approved
     } catch (error) {
-      console.error("💥 Error in checkApprovalStatus:", error)
+      logger.error("💥 Error in checkApprovalStatus:", error)
       setIsApproved(false)
       checkingUserIdRef.current = null
       return false
@@ -154,10 +155,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // セッションを確認
     const checkSession = async () => {
-      console.log("🔄 Checking session...")
+      logger.log("🔄 Checking session...")
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        console.log("📦 Session:", session?.user?.email, "ID:", session?.user?.id)
+        logger.log("📦 Session:", session?.user?.email, "ID:", session?.user?.id)
 
         if (!mounted) return
 
@@ -166,16 +167,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // セッションがある場合は承認状態も確認
         if (session?.user) {
-          console.log("✅ User found, checking approval status...")
+          logger.log("✅ User found, checking approval status...")
           await checkApprovalStatus(session.user.id, session.user.email)
         } else {
-          console.log("❌ No user session found")
+          logger.log("❌ No user session found")
         }
       } catch (error) {
-        console.error("💥 Error checking session:", error)
+        logger.error("💥 Error checking session:", error)
       } finally {
         if (mounted) {
-          console.log("🏁 Setting loading to false")
+          logger.log("🏁 Setting loading to false")
           setLoading(false)
         }
       }
@@ -185,13 +186,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 認証状態の変更を監視
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("🔔 Auth state change:", event, session?.user?.email)
+      logger.log("🔔 Auth state change:", event, session?.user?.email)
 
       if (!mounted) return
 
       // TOKEN_REFRESHEDイベントのみスキップ（トークン更新では承認状態を再確認する必要がない）
       if (event === 'TOKEN_REFRESHED') {
-        console.log(`⏭️ Skipping approval check for ${event} (token refresh only)`)
+        logger.log(`⏭️ Skipping approval check for ${event} (token refresh only)`)
         setSession(session)
         setUser(session?.user ?? null)
         return
@@ -199,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // SIGNED_OUTイベントの場合は承認状態をクリア
       if (event === 'SIGNED_OUT') {
-        console.log("👋 User signed out")
+        logger.log("👋 User signed out")
         setSession(null)
         setUser(null)
         setIsApproved(null)
@@ -213,18 +214,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        console.log("✅ User session exists, checking approval...")
+        logger.log("✅ User session exists, checking approval...")
         // 承認状態を確認（この呼び出しは非同期だが、状態は内部で更新される）
         await checkApprovalStatus(session.user.id, session.user.email)
       } else {
-        console.log("❌ No user in auth state change")
+        logger.log("❌ No user in auth state change")
         // ユーザーがいない場合のみnullにリセット
         setIsApproved(null)
         setRole(null)
         setUserName(null)
       }
 
-      console.log("🏁 Auth state change complete")
+      logger.log("🏁 Auth state change complete")
     })
 
     return () => {
@@ -247,7 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // ログイン成功後、承認状態を確実に取得する
       if (data.user) {
-        console.log("🔐 Sign in successful, checking approval status immediately...")
+        logger.log("🔐 Sign in successful, checking approval status immediately...")
         await checkApprovalStatus(data.user.id, data.user.email)
       }
 
@@ -284,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ])
 
         if (insertError) {
-          console.error('Failed to create user approval record:', insertError)
+          logger.error('Failed to create user approval record:', insertError)
           // user_approvalsテーブルへの挿入に失敗しても、認証自体は成功しているのでエラーは返さない
         }
       }
@@ -307,19 +308,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // 環境変数から取得を試みる
         const baseUrl = process.env.NEXT_PUBLIC_SITE_URL
-        console.log('🔧 NEXT_PUBLIC_SITE_URL:', baseUrl)
-        console.log('🌐 window.location.href:', window.location.href)
+        logger.log('🔧 NEXT_PUBLIC_SITE_URL:', baseUrl)
+        logger.log('🌐 window.location.href:', window.location.href)
 
         if (baseUrl) {
           const redirectUrl = `${baseUrl}/auth/callback`
-          console.log('✅ Using redirect URL from env:', redirectUrl)
+          logger.log('✅ Using redirect URL from env:', redirectUrl)
           return redirectUrl
         }
 
         // window.location.hrefからホスト部分を取得（ngrokのURLを含む）
         const url = new URL(window.location.href)
         const redirectUrl = `${url.protocol}//${url.host}/auth/callback`
-        console.log('⚠️ Using redirect URL from window.location:', redirectUrl)
+        logger.log('⚠️ Using redirect URL from window.location:', redirectUrl)
         return redirectUrl
       }
 
@@ -331,13 +332,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) {
-        console.error("Google sign in error:", error)
+        logger.error("Google sign in error:", error)
         return { error }
       }
 
       return { error: null }
     } catch (error) {
-      console.error("Google sign in exception:", error)
+      logger.error("Google sign in exception:", error)
       return { error: error as Error }
     }
   }
@@ -354,14 +355,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id)
 
       if (error) {
-        console.error('Failed to update user name:', error)
+        logger.error('Failed to update user name:', error)
         throw new Error('名前の更新に失敗しました')
       }
 
       // 状態を更新
       setUserName(name)
     } catch (error) {
-      console.error('Error updating user name:', error)
+      logger.error('Error updating user name:', error)
       throw error
     }
   }
