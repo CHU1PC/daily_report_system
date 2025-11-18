@@ -11,11 +11,19 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "日報月報管理システム",
   description: "時間管理と日報・月報作成システム",
-  generator: "v0.app",
+  generator: "Next.js",
   icons: {
     icon: "/icon.png",
     apple: "/icon.png",
   },
+  // 開発環境でキャッシュを完全に無効化
+  ...(process.env.NODE_ENV === 'development' && {
+    other: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    }
+  }),
 }
 
 export const viewport = {
