@@ -37,8 +37,8 @@ export async function GET() {
         { error: 'Not authenticated' },
         { status: 401 }
       )
-      // 認証エラーも短時間キャッシュ（不要な再試行を防ぐ）
-      response.headers.set('Cache-Control', 'private, max-age=60')
+      // キャッシュを無効化（ユーザー切り替え時のバグを防ぐため）
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
       return response
     }
 
@@ -66,8 +66,8 @@ export async function GET() {
         role: 'user',
         name: null,
       })
-      // キャッシュヘッダーを追加（5分間キャッシュ、承認状態は頻繁に変わらない）
-      response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=60')
+      // キャッシュを無効化（ユーザー切り替え時のバグを防ぐため）
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
       return response
     }
 
@@ -77,8 +77,8 @@ export async function GET() {
       role: data.role ?? 'user',
       name: data.name || null,
     })
-    // キャッシュヘッダーを追加（5分間キャッシュ、承認状態は頻繁に変わらない）
-    response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=60')
+    // キャッシュを無効化（ユーザー切り替え時のバグを防ぐため）
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
     return response
   } catch (error) {
     logError('[Approval API] Error in approval status API:', error)
