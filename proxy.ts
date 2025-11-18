@@ -26,19 +26,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next({ request })
     }
 
-    // Supabase認証Cookieの存在をチェック（軽量な認証チェック）
-    const authCookie = request.cookies.get('sb-access-token') ||
-                      request.cookies.get(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`)
-
-    // 認証Cookieがない場合は即座にリダイレクト（APIコールを避ける）
-    if (!authCookie) {
-      log('[Proxy] No auth cookie found, redirecting to /login')
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      return NextResponse.redirect(url)
-    }
-
-    // Cookieが存在する場合のみ、セッションの検証とトークンリフレッシュを実行
+    // セッションの検証とトークンリフレッシュを実行
     let supabaseResponse = NextResponse.next({
       request,
     })
@@ -60,7 +48,7 @@ export async function proxy(request: NextRequest) {
       }
     )
 
-    // getSession()はローカルセッションのみチェック（APIコールなし）
+    // getSession()はローカルセッションのみチェック（getUser()より高速）
     // トークンのリフレッシュが必要な場合のみAPIコールが発生
     const { data: { session } } = await supabase.auth.getSession()
 
