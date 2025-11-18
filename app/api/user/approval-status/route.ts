@@ -50,18 +50,24 @@ export async function GET() {
 
     // レコードが存在しない場合は未承認
     if (!data) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         approved: false,
         role: 'user',
         name: null,
       })
+      // キャッシュヘッダーを追加（5分間キャッシュ、承認状態は頻繁に変わらない）
+      response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=60')
+      return response
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       approved: data.approved ?? false,
       role: data.role ?? 'user',
       name: data.name || null,
     })
+    // キャッシュヘッダーを追加（5分間キャッシュ、承認状態は頻繁に変わらない）
+    response.headers.set('Cache-Control', 'private, max-age=300, stale-while-revalidate=60')
+    return response
   } catch (error) {
     console.error('Error in approval status API:', error)
     return NextResponse.json(
