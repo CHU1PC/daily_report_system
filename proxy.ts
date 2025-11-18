@@ -7,18 +7,38 @@ const log = (...args: any[]) => isDev && console.log(...args)
 
 export async function proxy(request: NextRequest) {
   try {
-    // 認証が不要なパス
-    const publicPaths = ['/login', '/signup', '/auth', '/pending-approval', '/api']
+    // 認証が不要なパス（最小限に限定）
+    const publicPaths = [
+      '/login',
+      '/signup',
+      '/auth',
+      '/pending-approval',
+      '/api/webhooks',  // 外部サービスからのwebhook
+      '/api/user/approval-status',  // 認証チェック用API（内部で認証を行う）
+    ]
     const isPublicPath = publicPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
     log('[Proxy] Path:', request.nextUrl.pathname, 'isPublicPath:', isPublicPath)
 
-    // OAuth callbackは認証チェックをスキップして直接通す
+    // 認証不要なパスは直接通す
     if (isPublicPath) {
       log('[Proxy] Allowing request (public path)')
       return NextResponse.next({ request })
     }
 
+    // Supabase認証Cookieの存在をチェック（軽量な認証チェック）
+    const authCookie = request.cookies.get('sb-access-token') ||
+                      request.cookies.get(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0]}-auth-token`)
+
+    // 認証Cookieがない場合は即座にリダイレクト（APIコールを避ける）
+    if (!authCookie) {
+      log('[Proxy] No auth cookie found, redirecting to /login')
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
+
+    // Cookieが存在する場合のみ、セッションの検証とトークンリフレッシュを実行
     let supabaseResponse = NextResponse.next({
       request,
     })
@@ -40,15 +60,15 @@ export async function proxy(request: NextRequest) {
       }
     )
 
-    // Refresh the Auth token
-    // @ts-ignore - Type issue with @supabase/ssr 0.7.0
-    const { data: { user } } = await supabase.auth.getUser()
+    // getSession()はローカルセッションのみチェック（APIコールなし）
+    // トークンのリフレッシュが必要な場合のみAPIコールが発生
+    const { data: { session } } = await supabase.auth.getSession()
 
-    log('[Proxy] User:', user ? 'authenticated' : 'not authenticated')
+    log('[Proxy] Session:', session?.user ? 'valid' : 'invalid')
 
-    // 認証が必要なルートへのアクセス
-    if (!user) {
-      log('[Proxy] Redirecting to /login')
+    // セッションが無効な場合はログインへリダイレクト
+    if (!session?.user) {
+      log('[Proxy] Invalid session, redirecting to /login')
       const url = request.nextUrl.clone()
       url.pathname = '/login'
       return NextResponse.redirect(url)
