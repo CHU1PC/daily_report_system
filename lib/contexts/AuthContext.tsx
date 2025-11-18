@@ -307,6 +307,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    // localStorageをクリア（ユーザー切り替え時のデータ持ち越しを防ぐ）
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem("tasks")
+      localStorage.removeItem("timeEntries")
+      logger.log("🗑️ Cleared localStorage (tasks and timeEntries)")
+    }
+
+    // 承認キャッシュを明示的にクリア
+    approvalCacheRef.current = null
+    checkingUserIdRef.current = null
+    logger.log("🗑️ Cleared approval cache refs in signOut")
+
     await supabase.auth.signOut()
   }
 
