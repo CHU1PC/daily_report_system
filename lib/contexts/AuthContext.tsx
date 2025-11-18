@@ -89,6 +89,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return cache.approved
       }
 
+      // キャッシュがあるが異なるユーザーIDの場合はキャッシュを無効化
+      if (cache && cache.userId !== currentUserId) {
+        logger.log("🗑️ Invalidating cache - userId mismatch (cached:", cache.userId, "current:", currentUserId, ")")
+        approvalCacheRef.current = null
+      }
+
       logger.log("👤 Using user:", currentUserEmail, "ID:", currentUserId)
       checkingUserIdRef.current = currentUserId
       logger.log("📊 Fetching approval status from API for user_id:", currentUserId)
@@ -206,6 +212,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsApproved(null)
         setRole(null)
         setUserName(null)
+        // キャッシュもクリア
+        approvalCacheRef.current = null
+        checkingUserIdRef.current = null
+        logger.log("🗑️ Cleared approval cache on sign out")
         return
       }
 
