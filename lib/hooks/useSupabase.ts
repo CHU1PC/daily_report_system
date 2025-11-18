@@ -186,8 +186,17 @@ export function useSupabase() {
     if (user) {
       loadData()
     } else {
-      // userがない場合はローディングを終了
+      // userがない場合（ログアウト時）はstateとlocalStorageをクリア
+      setTasks([])
+      setTimeEntries([])
       setLoading(false)
+
+      // localStorageもクリア（念のため）
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem("tasks")
+        localStorage.removeItem("timeEntries")
+        console.log('[useSupabase] Cleared tasks and timeEntries on user logout')
+      }
     }
   }, [user, isAdmin])
 
