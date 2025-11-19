@@ -42,6 +42,8 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [teams, setTeams] = useState<TeamInfo[]>([])
   const [creatingGlobalTask, setCreatingGlobalTask] = useState(false)
+  const [showGlobalTaskDialog, setShowGlobalTaskDialog] = useState(false)
+  const [newGlobalTaskName, setNewGlobalTaskName] = useState('')
 
   // Team情報を取得
   useEffect(() => {
@@ -262,7 +264,15 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
     })
   }
 
-  const handleCreateStudyTask = async () => {
+  const handleCreateGlobalTask = async () => {
+    if (!newGlobalTaskName.trim()) {
+      setSyncMessage({
+        type: 'error',
+        text: 'タスク名を入力してください'
+      })
+      return
+    }
+
     setCreatingGlobalTask(true)
     setSyncMessage(null)
 
@@ -272,7 +282,7 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ taskName: '勉強' }),
+        body: JSON.stringify({ taskName: newGlobalTaskName.trim() }),
       })
 
       const data = await res.json()
@@ -285,6 +295,10 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
         type: 'success',
         text: data.message
       })
+
+      // ダイアログを閉じて入力をクリア
+      setShowGlobalTaskDialog(false)
+      setNewGlobalTaskName('')
 
       // タスクリストを再読み込み（ページリロードで更新）
       window.location.reload()
@@ -348,41 +362,13 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
               </div>
             </div>
             {isAdmin && (
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleCreateStudyTask}
-                  disabled={creatingGlobalTask}
-                  variant="outline"
-                  size="sm"
-                >
-                  {creatingGlobalTask ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      作成中...
-                    </>
-                  ) : (
-                    '勉強タスク作成'
-                  )}
-                </Button>
-                <Button
-                  onClick={handleSyncLinearIssues}
-                  disabled={syncing}
-                  variant="outline"
-                  size="sm"
-                >
-                  {syncing ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      同期中...
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Linear同期
-                    </>
-                  )}
-                </Button>
-              </div>
+              <Button
+                onClick={() => setShowGlobalTaskDialog(true)}
+                variant="outline"
+                size="sm"
+              >
+                グローバルタスク作成
+              </Button>
             )}
           </div>
         </div>
@@ -599,6 +585,56 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
                 保存
               </Button>
               <Button onClick={() => setEditingTask(null)} variant="outline" className="flex-1">
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGlobalTaskDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg p-6 w-96 space-y-4">
+            <h3 className="text-lg font-semibold">グローバルタスクを作成</h3>
+            <p className="text-sm text-muted-foreground">
+              全ユーザーが使用できるタスクを作成します
+            </p>
+
+            <Input
+              placeholder="タスク名を入力（例: 勉強、会議、休憩）"
+              value={newGlobalTaskName}
+              onChange={(e) => setNewGlobalTaskName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !creatingGlobalTask) {
+                  handleCreateGlobalTask()
+                }
+              }}
+            />
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleCreateGlobalTask}
+                className="flex-1"
+                disabled={creatingGlobalTask || !newGlobalTaskName.trim()}
+              >
+                {creatingGlobalTask ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    作成中...
+                  </>
+                ) : (
+                  '作成'
+                )}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowGlobalTaskDialog(false)
+                  setNewGlobalTaskName('')
+                }}
+                variant="outline"
+                className="flex-1"
+                disabled={creatingGlobalTask}
+              >
                 キャンセル
               </Button>
             </div>
