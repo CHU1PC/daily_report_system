@@ -74,12 +74,20 @@ export function useSupabase() {
       if (error) throw error
 
       // 管理者: 全タスクを取得（未アサインタスクを表示するため）
-      // 一般ユーザー: 自分のemailとassignee_emailが一致するタスクのみ表示
+      // 一般ユーザー: 自分のemailとassignee_emailが一致するタスク + グローバルタスク(TaskForAll@task.com)のみ表示
       const filteredData = isAdmin
         ? (data || [])
         : (data || []).filter((task) => {
-            // assignee_emailが設定されており、かつユーザーのemailと一致するタスクのみ表示
-            return !!task.assignee_email && task.assignee_email === user?.email
+            // 1. グローバルタスク（全員が見える）
+            if (task.assignee_email === 'TaskForAll@task.com') {
+              return true
+            }
+            // 2. 自分にアサインされているタスク
+            if (task.assignee_email === user?.email) {
+              return true
+            }
+            // 3. それ以外（nullや他人のタスク）は非表示
+            return false
           })
 
       console.log(`Filtered ${filteredData.length} tasks from ${data?.length || 0} total tasks (user email: ${user?.email}, isAdmin: ${isAdmin})`)
