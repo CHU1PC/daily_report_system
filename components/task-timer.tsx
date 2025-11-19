@@ -105,7 +105,20 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
 
   // タスクをTeamごとにグループ化してソート
   const groupedAvailableTasks = availableTasks.reduce((groups, task) => {
-    const teamName = task.linear_team_id ? `Team: ${task.linear_identifier?.split('-')[0] || 'Unknown'}` : 'その他'
+    // グローバルタスク（linear_team_idがnull）の場合は、linear_identifierをラベルとして使用
+    // それ以外はTeam名を使用
+    let teamName: string
+    if (!task.linear_team_id && task.assignee_email === 'TaskForAll@task.com') {
+      // グローバルタスク: linear_identifierをラベルとして使用（なければ「その他」）
+      teamName = task.linear_identifier || 'その他'
+    } else if (task.linear_team_id) {
+      // 通常のLinearタスク: Team名を使用
+      teamName = `Team: ${task.linear_identifier?.split('-')[0] || 'Unknown'}`
+    } else {
+      // その他
+      teamName = 'その他'
+    }
+
     if (!groups[teamName]) {
       groups[teamName] = []
     }
@@ -113,10 +126,21 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
     return groups
   }, {} as Record<string, typeof availableTasks>)
 
-  // グループをソート: 「その他」グループを最後に配置
+  // グループをソート: Teamグループを上に、グローバルタスクグループ（Team:で始まらない）を下に配置
   const sortedGroupedTasks = Object.entries(groupedAvailableTasks).sort(([teamA], [teamB]) => {
-    if (teamA === 'その他') return 1
-    if (teamB === 'その他') return -1
+    const isTeamA = teamA.startsWith('Team:')
+    const isTeamB = teamB.startsWith('Team:')
+
+    // 両方ともTeamグループの場合、アルファベット順
+    if (isTeamA && isTeamB) {
+      return teamA.localeCompare(teamB)
+    }
+
+    // 片方だけTeamグループの場合、Teamグループを上に
+    if (isTeamA) return -1
+    if (isTeamB) return 1
+
+    // 両方ともグローバルタスクグループの場合、アルファベット順
     return teamA.localeCompare(teamB)
   })
 
