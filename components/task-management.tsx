@@ -41,6 +41,7 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
   const [syncMessage, setSyncMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
   const [teams, setTeams] = useState<TeamInfo[]>([])
+  const [creatingGlobalTask, setCreatingGlobalTask] = useState(false)
 
   // Team情報を取得
   useEffect(() => {
@@ -261,6 +262,43 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
     })
   }
 
+  const handleCreateStudyTask = async () => {
+    setCreatingGlobalTask(true)
+    setSyncMessage(null)
+
+    try {
+      const res = await fetch('/api/admin/tasks/create-global', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ taskName: '勉強' }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data.details || data.error || 'グローバルタスクの作成に失敗しました')
+      }
+
+      setSyncMessage({
+        type: 'success',
+        text: data.message
+      })
+
+      // タスクリストを再読み込み（ページリロードで更新）
+      window.location.reload()
+    } catch (err) {
+      console.error('Create global task error:', err)
+      setSyncMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'グローバルタスクの作成に失敗しました'
+      })
+    } finally {
+      setCreatingGlobalTask(false)
+    }
+  }
+
   return (
     <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 min-h-[calc(100vh-200px)] relative">
       {/* Linear同期中の表示 */}
@@ -310,24 +348,41 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
               </div>
             </div>
             {isAdmin && (
-              <Button
-                onClick={handleSyncLinearIssues}
-                disabled={syncing}
-                variant="outline"
-                size="sm"
-              >
-                {syncing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    同期中...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Linear同期
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCreateStudyTask}
+                  disabled={creatingGlobalTask}
+                  variant="outline"
+                  size="sm"
+                >
+                  {creatingGlobalTask ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      作成中...
+                    </>
+                  ) : (
+                    '勉強タスク作成'
+                  )}
+                </Button>
+                <Button
+                  onClick={handleSyncLinearIssues}
+                  disabled={syncing}
+                  variant="outline"
+                  size="sm"
+                >
+                  {syncing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      同期中...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Linear同期
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </div>
