@@ -232,7 +232,7 @@ export function WeeklyCalendar({ tasks, timeEntries, onUpdateEntry, onDeleteEntr
                   return (
                     <div
                       key={entry.id}
-                      className="absolute left-1 right-1 rounded px-2 py-1 text-xs cursor-pointer pointer-events-auto overflow-hidden hover:opacity-90 transition-opacity"
+                      className="absolute left-1 right-1 rounded-md px-2.5 py-2 cursor-pointer pointer-events-auto overflow-hidden hover:ring-2 hover:ring-white/50 transition-all shadow-sm"
                       style={{
                         backgroundColor: task.color,
                         top: position.top,
@@ -240,9 +240,17 @@ export function WeeklyCalendar({ tasks, timeEntries, onUpdateEntry, onDeleteEntr
                       }}
                       onClick={() => handleEntryClick(entry)}
                     >
-                      <div className="font-medium text-white truncate">{task.name}</div>
-                      <div className="text-white/90 text-[10px]">
-                        {formatTime(entry.startTime)} - {entry.endTime ? formatTime(entry.endTime) : "進行中"}
+                      <div className="font-semibold text-white text-sm leading-tight mb-1 truncate drop-shadow-sm">
+                        {task.name}
+                      </div>
+                      <div className="text-white font-medium text-xs flex items-center gap-1 drop-shadow-sm">
+                        <span className="bg-white/20 px-1.5 py-0.5 rounded text-[11px]">
+                          {formatTime(entry.startTime)}
+                        </span>
+                        <span>-</span>
+                        <span className="bg-white/20 px-1.5 py-0.5 rounded text-[11px]">
+                          {entry.endTime ? formatTime(entry.endTime) : "進行中"}
+                        </span>
                       </div>
                     </div>
                   )
