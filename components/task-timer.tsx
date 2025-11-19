@@ -227,7 +227,30 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
     }
   }, [])
 
-  const handleMidnightCrossover = () => {
+  const writeToSpreadsheet = async (entryId: string) => {
+    try {
+      const response = await fetch('/api/spreadsheet/write', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          timeEntryId: entryId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[writeToSpreadsheet] Failed to write to spreadsheet:', errorData)
+      } else {
+        console.log('[writeToSpreadsheet] Successfully wrote to spreadsheet')
+      }
+    } catch (spreadsheetError) {
+      console.error('[writeToSpreadsheet] Error writing to spreadsheet:', spreadsheetError)
+    }
+  }
+
+  const handleMidnightCrossover = async () => {
     if (!isRunning || !selectedTaskId || !startTime || !currentEntryId) return
 
     // 前日の23:59:59を計算
@@ -235,10 +258,13 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
     previousDayEnd.setHours(23, 59, 59, 999)
 
     // 現在進行中のエントリを前日の23:59:59で終了
-    onUpdateEntry(currentEntryId, {
+    await onUpdateEntry(currentEntryId, {
       endTime: previousDayEnd.toISOString(),
       comment: comment || pendingComment,
     })
+
+    // スプレッドシートに書き込み
+    await writeToSpreadsheet(currentEntryId)
 
     // 新しい日の00:00:00で新しいタスクを開始
     const newDayStart = new Date(previousDayEnd)
@@ -323,28 +349,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
         console.log('[handleSaveEntry] Entry updated successfully')
 
         // Google Sheetsにデータを書き込む
-        try {
-          const response = await fetch('/api/spreadsheet/write', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              timeEntryId: currentEntryId,
-            }),
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error('[handleSaveEntry] Failed to write to spreadsheet:', errorData)
-            // スプレッドシート書き込み失敗はエラーとして表示するが、処理は続行
-          } else {
-            console.log('[handleSaveEntry] Successfully wrote to spreadsheet')
-          }
-        } catch (spreadsheetError) {
-          console.error('[handleSaveEntry] Error writing to spreadsheet:', spreadsheetError)
-          // スプレッドシート書き込み失敗はエラーとして表示するが、処理は続行
-        }
+        await writeToSpreadsheet(currentEntryId)
       } catch (error) {
         console.error('[handleSaveEntry] Failed to update entry:', error)
         setIsSaving(false) // エラー時はローディング状態を解除
