@@ -22,12 +22,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden - Admin only' }, { status: 403 })
     }
 
-    // リクエストボディからタスク名を取得
+    // リクエストボディからタスク名とラベルを取得
     const body = await request.json()
-    const { taskName } = body
+    const { taskName, label } = body
 
     if (!taskName || typeof taskName !== 'string') {
       return NextResponse.json({ error: 'Task name is required' }, { status: 400 })
+    }
+
+    if (!label || typeof label !== 'string') {
+      return NextResponse.json({ error: 'Label is required' }, { status: 400 })
     }
 
     // 同名のグローバルタスクが既に存在するかチェック
@@ -53,14 +57,14 @@ export async function POST(request: Request) {
         name: taskName,
         color: '#10b981', // 緑色
         user_id: user.id,
-        // Linear関連のフィールドはnullのまま
+        // Linear関連のフィールドはnullのまま（linear_identifierはラベルとして使用）
         linear_issue_id: null,
         linear_team_id: null,
         linear_project_id: null,
         linear_state_type: null,
         assignee_email: 'TaskForAll@task.com', // 全員が見えるグローバルタスク
         assignee_name: 'All Users',
-        linear_identifier: null,
+        linear_identifier: label, // ラベル名を保存（グループ分けに使用）
         linear_url: null,
         priority: null,
         description: `このタスクは誰でも使用できる共通タスクです（管理者が作成）`,

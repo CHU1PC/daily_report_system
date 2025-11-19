@@ -44,6 +44,7 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
   const [creatingGlobalTask, setCreatingGlobalTask] = useState(false)
   const [showGlobalTaskDialog, setShowGlobalTaskDialog] = useState(false)
   const [newGlobalTaskName, setNewGlobalTaskName] = useState('')
+  const [newGlobalTaskLabel, setNewGlobalTaskLabel] = useState('')
 
   // Team情報を取得
   useEffect(() => {
@@ -273,6 +274,14 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
       return
     }
 
+    if (!newGlobalTaskLabel.trim()) {
+      setSyncMessage({
+        type: 'error',
+        text: 'ラベル名を入力してください'
+      })
+      return
+    }
+
     setCreatingGlobalTask(true)
     setSyncMessage(null)
 
@@ -282,7 +291,10 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ taskName: newGlobalTaskName.trim() }),
+        body: JSON.stringify({
+          taskName: newGlobalTaskName.trim(),
+          label: newGlobalTaskLabel.trim()
+        }),
       })
 
       const data = await res.json()
@@ -299,6 +311,7 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
       // ダイアログを閉じて入力をクリア
       setShowGlobalTaskDialog(false)
       setNewGlobalTaskName('')
+      setNewGlobalTaskLabel('')
 
       // タスクリストを再読み込み（ページリロードで更新）
       window.location.reload()
@@ -600,22 +613,39 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
               全ユーザーが使用できるタスクを作成します
             </p>
 
-            <Input
-              placeholder="タスク名を入力（例: 勉強、会議、休憩）"
-              value={newGlobalTaskName}
-              onChange={(e) => setNewGlobalTaskName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !creatingGlobalTask) {
-                  handleCreateGlobalTask()
-                }
-              }}
-            />
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">タスク名</label>
+                <Input
+                  placeholder="例: 勉強、会議、休憩"
+                  value={newGlobalTaskName}
+                  onChange={(e) => setNewGlobalTaskName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">ラベル（グループ名）</label>
+                <Input
+                  placeholder="例: その他、共通、日常"
+                  value={newGlobalTaskLabel}
+                  onChange={(e) => setNewGlobalTaskLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !creatingGlobalTask) {
+                      handleCreateGlobalTask()
+                    }
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  タスク選択時にこのラベルでグループ化されます
+                </p>
+              </div>
+            </div>
 
             <div className="flex gap-2">
               <Button
                 onClick={handleCreateGlobalTask}
                 className="flex-1"
-                disabled={creatingGlobalTask || !newGlobalTaskName.trim()}
+                disabled={creatingGlobalTask || !newGlobalTaskName.trim() || !newGlobalTaskLabel.trim()}
               >
                 {creatingGlobalTask ? (
                   <>
@@ -630,6 +660,7 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
                 onClick={() => {
                   setShowGlobalTaskDialog(false)
                   setNewGlobalTaskName('')
+                  setNewGlobalTaskLabel('')
                 }}
                 variant="outline"
                 className="flex-1"
