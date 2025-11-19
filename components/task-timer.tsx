@@ -113,6 +113,13 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
     return groups
   }, {} as Record<string, typeof availableTasks>)
 
+  // グループをソート: 「その他」グループを最後に配置
+  const sortedGroupedTasks = Object.entries(groupedAvailableTasks).sort(([teamA], [teamB]) => {
+    if (teamA === 'その他') return 1
+    if (teamB === 'その他') return -1
+    return teamA.localeCompare(teamB)
+  })
+
   useEffect(() => {
     let interval: NodeJS.Timeout
 
@@ -373,7 +380,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
                     <SelectValue placeholder="タスクを選択" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[400px]" position="popper" sideOffset={4}>
-                    {Object.entries(groupedAvailableTasks).map(([teamName, teamTasks]) => (
+                    {sortedGroupedTasks.map(([teamName, teamTasks]) => (
                       <div key={teamName}>
                         <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
                           {teamName} ({teamTasks.length})
