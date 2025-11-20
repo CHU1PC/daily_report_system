@@ -342,6 +342,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
     // 現在進行中のエントリを更新
     if (currentEntryId) {
       try {
+        // 1. 現在のエントリを更新
         await onUpdateEntry(currentEntryId, {
           endTime: now,
           comment: pendingComment,
@@ -350,6 +351,47 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
 
         // Google Sheetsにデータを書き込む
         await writeToSpreadsheet(currentEntryId)
+
+        // 2. 過去の連続したエントリを遡って更新
+        // 現在のエントリ情報を取得（開始時刻を知るため）
+        const currentEntry = timeEntries.find(e => e.id === currentEntryId)
+        if (currentEntry) {
+          let checkStartTime = new Date(currentEntry.startTime).getTime()
+          
+          // 過去のエントリを探索
+          // 時間順にソート（新しい順）
+          const sortedEntries = [...timeEntries]
+            .filter(e => e.id !== currentEntryId && e.taskId === selectedTaskId && e.endTime)
+            .sort((a, b) => new Date(b.endTime!).getTime() - new Date(a.endTime!).getTime())
+
+          for (const entry of sortedEntries) {
+            const entryEndTime = new Date(entry.endTime!).getTime()
+            
+            // 終了時刻と開始時刻の差が1秒以内なら連続とみなす
+            if (Math.abs(checkStartTime - entryEndTime) <= 1000) {
+              console.log('[handleSaveEntry] Found previous contiguous entry:', entry.id)
+              
+              // コメントを更新
+              await onUpdateEntry(entry.id, {
+                comment: pendingComment
+              })
+              
+              // スプレッドシートも更新（再書き込み）
+              await writeToSpreadsheet(entry.id)
+              
+              // 次の探索のために基準時間を更新
+              checkStartTime = new Date(entry.startTime).getTime()
+            } else {
+              // 連続していない場合は探索終了（ソートされているため）
+              if (checkStartTime < entryEndTime) {
+                // まだ新しいエントリを見ている場合はスキップ
+                continue
+              }
+              break
+            }
+          }
+        }
+
       } catch (error) {
         console.error('[handleSaveEntry] Failed to update entry:', error)
         setIsSaving(false) // エラー時はローディング状態を解除
