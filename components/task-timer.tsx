@@ -230,6 +230,46 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
   const handleMidnightCrossover = async () => {
     if (!isRunning || !selectedTaskId || !startTime || !currentEntryId) return
 
+    // スプレッドシート更新用ヘルパー（updateエンドポイントを直接叩く）
+    const updateSpreadsheetEntry = async (entryId: string) => {
+      try {
+        const response = await fetch('/api/spreadsheet/update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ timeEntryId: entryId }),
+        })
+
+        if (response.ok) {
+          console.log('[handleMidnightCrossover] Spreadsheet updated successfully')
+          return
+        }
+
+        const errorData = await response.json()
+        console.error('[handleMidnightCrossover] Failed to update spreadsheet:', response.status, errorData)
+
+        // 更新対象が見つからない場合は初回行として追記
+        if (response.status === 404) {
+          const writeRes = await fetch('/api/spreadsheet/write', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ timeEntryId: entryId }),
+          })
+          if (!writeRes.ok) {
+            const writeError = await writeRes.json()
+            console.error('[handleMidnightCrossover] Fallback write also failed:', writeError)
+          } else {
+            console.log('[handleMidnightCrossover] Fallback write succeeded')
+          }
+        }
+      } catch (spreadsheetError) {
+        console.error('[handleMidnightCrossover] Error updating spreadsheet:', spreadsheetError)
+      }
+    }
+
     // 前日の23:59:59を計算
     const previousDayEnd = new Date(startTime)
     previousDayEnd.setHours(23, 59, 59, 999)
@@ -239,6 +279,8 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
       endTime: previousDayEnd.toISOString(),
       comment: comment || pendingComment,
     })
+    // DB更新が成功した場合にスプレッドシートも確実に更新（update APIは見つからなければappendする）
+    await updateSpreadsheetEntry(currentEntryId)
 
     // 新しい日の00:00:00で新しいタスクを開始
     const newDayStart = new Date(previousDayEnd)
