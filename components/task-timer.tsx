@@ -227,29 +227,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
     }
   }, [])
 
-  const writeToSpreadsheet = async (entryId: string) => {
-    try {
-      const response = await fetch('/api/spreadsheet/write', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          timeEntryId: entryId,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('[writeToSpreadsheet] Failed to write to spreadsheet:', errorData)
-      } else {
-        console.log('[writeToSpreadsheet] Successfully wrote to spreadsheet')
-      }
-    } catch (spreadsheetError) {
-      console.error('[writeToSpreadsheet] Error writing to spreadsheet:', spreadsheetError)
-    }
-  }
-
   const handleMidnightCrossover = async () => {
     if (!isRunning || !selectedTaskId || !startTime || !currentEntryId) return
 
@@ -262,9 +239,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
       endTime: previousDayEnd.toISOString(),
       comment: comment || pendingComment,
     })
-
-    // スプレッドシートに書き込み
-    await writeToSpreadsheet(currentEntryId)
 
     // 新しい日の00:00:00で新しいタスクを開始
     const newDayStart = new Date(previousDayEnd)
@@ -349,9 +323,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
         })
         console.log('[handleSaveEntry] Entry updated successfully')
 
-        // Google Sheetsにデータを書き込む
-        await writeToSpreadsheet(currentEntryId)
-
         // 2. 過去の連続したエントリを遡って更新
         // 現在のエントリ情報を取得（開始時刻を知るため）
         const currentEntry = timeEntries.find(e => e.id === currentEntryId)
@@ -375,9 +346,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
               await onUpdateEntry(entry.id, {
                 comment: pendingComment
               })
-              
-              // スプレッドシートも更新（再書き込み）
-              await writeToSpreadsheet(entry.id)
               
               // 次の探索のために基準時間を更新
               checkStartTime = new Date(entry.startTime).getTime()

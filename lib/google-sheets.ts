@@ -198,14 +198,6 @@ export async function updateTimeEntryInSheet(
     // エントリーIDが一致する行を見つける（ヘッダー行をスキップ）
     const rowIndex = rows.findIndex((row, index) => index > 0 && row[0] === data.timeEntryId)
 
-    if (rowIndex === -1) {
-      console.warn('[updateTimeEntryInSheet] Entry ID not found in sheet. This entry may have been created before the ID column was added.')
-      console.warn('[updateTimeEntryInSheet] Skipping spreadsheet update for entry:', data.timeEntryId)
-      // エントリーIDが見つからない場合はスキップ（古いエントリーの可能性）
-      return
-    }
-
-    // 更新するデータ
     const rowData = [
       [
         data.timeEntryId,
@@ -221,6 +213,19 @@ export async function updateTimeEntryInSheet(
         data.endTime,
       ],
     ]
+
+    if (rowIndex === -1) {
+      // 見つからない場合は新規追加（初回書き込み時の重複防止）
+      console.warn('[updateTimeEntryInSheet] Entry ID not found in sheet. Appending new row:', data.timeEntryId)
+      await sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range: `${sheetName}!A:K`,
+        valueInputOption: 'RAW',
+        requestBody: { values: rowData },
+      })
+      console.log(`Time entry appended to sheet: ${sheetName}`)
+      return
+    }
 
     // 該当行を更新（行番号は1-indexed）
     await sheets.spreadsheets.values.update({
