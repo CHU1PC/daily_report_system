@@ -55,7 +55,38 @@ export default function HomePage() {
 
   const handleAddEntry = async (entry: Omit<TimeEntry, "id">) => {
     try {
-      await addTimeEntry(entry)
+      const savedEntry = await addTimeEntry(entry)
+      console.log('[handleAddEntry] Entry added, ID:', savedEntry?.id)
+
+      // 完了したエントリ（endTimeがある）の場合、スプレッドシートに同期
+      if (savedEntry?.id && entry.endTime) {
+        console.log('[handleAddEntry] Syncing to spreadsheet:', savedEntry.id)
+        try {
+          const updateRes = await fetch('/api/spreadsheet/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timeEntryId: savedEntry.id }),
+          })
+
+          if (updateRes.ok) {
+            console.log('[handleAddEntry] Spreadsheet updated successfully')
+          } else {
+            // 行が存在しない場合は追記
+            const writeRes = await fetch('/api/spreadsheet/write', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ timeEntryId: savedEntry.id }),
+            })
+            if (writeRes.ok) {
+              console.log('[handleAddEntry] Spreadsheet write succeeded')
+            } else {
+              console.error('[handleAddEntry] Spreadsheet write failed')
+            }
+          }
+        } catch (spreadsheetError) {
+          console.error('[handleAddEntry] Error syncing to spreadsheet:', spreadsheetError)
+        }
+      }
     } catch (err) {
       console.error("Failed to add entry:", err)
     }

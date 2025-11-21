@@ -85,27 +85,22 @@ export function TimeEntryDialog({ open, onOpenChange, entry, tasks, onUpdate, on
       return
     }
 
-    const [startHour, startMinute] = startTime.split(":").map(Number)
-    const [endHour, endMinute] = endTime.split(":").map(Number)
-
     // 日付をまたぐ場合は、2つのエントリに分割
     if (startDate !== endDate) {
-      // 元のエントリを削除
-      onDelete()
-
-      // 1つ目: 開始日の開始時刻から23:59:59まで
+      // 元のエントリを23:59:59まで更新（削除しない）
       const firstStart = new Date(`${startDate}T${startTime}:00`)
       const firstEnd = new Date(`${startDate}T23:59:59.999`)
 
-      onAdd({
-        taskId: entry.taskId,
+      const firstUpdates: Partial<TimeEntry> = {
+        comment,
         startTime: firstStart.toISOString(),
         endTime: firstEnd.toISOString(),
-        comment,
         date: startDate,
-      })
+      }
 
-      // 2つ目: 終了日の0:00から終了時刻まで
+      onUpdate(firstUpdates)
+
+      // 2つ目: 終了日の0:00から終了時刻まで（新規追加）
       const secondStart = new Date(`${endDate}T00:00:00.000`)
       const secondEnd = new Date(`${endDate}T${endTime}:00`)
 
