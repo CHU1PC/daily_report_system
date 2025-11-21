@@ -59,11 +59,14 @@ export async function POST(request: NextRequest) {
   console.log('[Linear Webhook] Headers:', Object.fromEntries(request.headers))
 
   try {
-    const webhookSecret = process.env.LINEAR_WEBHOOK_SECRET
-    console.log('[Linear Webhook] Webhook secret configured:', !!webhookSecret)
+    const webhookSecretsEnv = process.env.LINEAR_WEBHOOK_SECRET
+    console.log('[Linear Webhook] Webhook secret configured:', !!webhookSecretsEnv)
+
+    // 複数の秘密鍵をサポート（カンマ区切り）
+    const webhookSecrets = webhookSecretsEnv ? webhookSecretsEnv.split(',').map(s => s.trim()) : []
 
     // 署名検証（本番環境では必須）
-    if (webhookSecret) {
+    if (webhookSecrets.length > 0) {
       const signature = request.headers.get('linear-signature')
       console.log('[Linear Webhook] Signature:', signature)
 
@@ -73,8 +76,19 @@ export async function POST(request: NextRequest) {
       }
 
       const rawBody = await request.text()
-      if (!verifyLinearSignature(rawBody, signature, webhookSecret)) {
-        console.error('[Linear Webhook] Invalid signature')
+
+      // いずれかの秘密鍵で署名検証が成功すればOK
+      let isValidSignature = false
+      for (const secret of webhookSecrets) {
+        if (verifyLinearSignature(rawBody, signature, secret)) {
+          isValidSignature = true
+          console.log('[Linear Webhook] Signature verified successfully')
+          break
+        }
+      }
+
+      if (!isValidSignature) {
+        console.error('[Linear Webhook] Invalid signature - tried', webhookSecrets.length, 'secrets')
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
       }
 

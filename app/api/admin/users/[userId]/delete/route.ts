@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export async function DELETE(
   request: NextRequest,
@@ -52,9 +53,35 @@ export async function DELETE(
       throw new Error('Failed to delete user from approvals table')
     }
 
-    // Supabase Authからユーザー削除（管理者のみ可能）
-    // Note: これはサービスロールキーが必要なため、現在のクライアントでは実行できません
-    // 必要に応じて、Supabase管理画面から手動で削除するか、サービスロールAPIを使用してください
+    // Supabase Authからユーザー削除（Service Roleキーを使用）
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (supabaseUrl && supabaseServiceKey) {
+      try {
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        })
+
+        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+        if (authDeleteError) {
+          console.error('Error deleting user from Supabase Auth:', authDeleteError)
+          // Auth削除に失敗してもuser_approvalsは削除済みなので、警告のみ
+          console.warn('User removed from approvals but Auth deletion failed. User can no longer access the app.')
+        } else {
+          console.log('User deleted from Supabase Auth:', userId)
+        }
+      } catch (authError) {
+        console.error('Exception during Auth deletion:', authError)
+        // Auth削除に失敗してもuser_approvalsは削除済みなので、警告のみ
+      }
+    } else {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not configured. User removed from approvals but still exists in Auth.')
+    }
 
     console.log('User deleted successfully:', userId)
 

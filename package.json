@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "start": "next start",
     "setup-webhooks": "tsx scripts/setup-linear-webhooks.ts",
-    "setup-global-webhook": "tsx scripts/setup-global-webhook.ts"
+    "setup-global-webhook": "tsx scripts/setup-global-webhook.ts",
+    "sync:linear": "tsx scripts/sync-linear-issues.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
