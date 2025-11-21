@@ -111,12 +111,22 @@ export function WeeklyCalendar({ tasks, timeEntries, onUpdateEntry, onDeleteEntr
 
     const end = new Date(endTime)
 
-    // 開始日と終了日が異なる場合の処理
-    const startDate = start.toISOString().split("T")[0]
-    const endDate = end.toISOString().split("T")[0]
+    // 開始日と終了日が異なる場合の処理（ローカルタイムゾーンで比較）
+    const startYear = start.getFullYear()
+    const startMonth = String(start.getMonth() + 1).padStart(2, '0')
+    const startDay = String(start.getDate()).padStart(2, '0')
+    const startDate = `${startYear}-${startMonth}-${startDay}`
+
+    const endYear = end.getFullYear()
+    const endMonth = String(end.getMonth() + 1).padStart(2, '0')
+    const endDay = String(end.getDate()).padStart(2, '0')
+    const endDate = `${endYear}-${endMonth}-${endDay}`
 
     if (displayDate && startDate !== endDate) {
-      const displayDateStr = displayDate.toISOString().split("T")[0]
+      const displayYear = displayDate.getFullYear()
+      const displayMonth = String(displayDate.getMonth() + 1).padStart(2, '0')
+      const displayDay = String(displayDate.getDate()).padStart(2, '0')
+      const displayDateStr = `${displayYear}-${displayMonth}-${displayDay}`
 
       // 表示している日が開始日の場合、開始時刻から24:00まで表示
       if (displayDateStr === startDate) {
