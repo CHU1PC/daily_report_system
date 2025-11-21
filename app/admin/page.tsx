@@ -12,7 +12,6 @@ import {
   ArrowLeft, Trash2, XCircle
 } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { UserTeamViewer } from '@/components/user-team-viewer'
 
 interface User {
   user_id: string
@@ -233,9 +232,6 @@ export default function AdminPage() {
             <TabsTrigger value="approved">
               承認済みユーザー ({approvedUsers.length})
             </TabsTrigger>
-            <TabsTrigger value="user-teams">
-              ユーザーTeam表示
-            </TabsTrigger>
           </TabsList>
 
           {/* 承認待ちユーザー */}
@@ -407,11 +403,6 @@ export default function AdminPage() {
                 </Card>
               ))
             )}
-          </TabsContent>
-
-          {/* ユーザーTeam表示 */}
-          <TabsContent value="user-teams">
-            <UserTeamViewer />
           </TabsContent>
         </Tabs>
       </div>
