@@ -1,6 +1,6 @@
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
-import { updateTimeEntryInSheet, TimeEntryData } from '@/lib/google-sheets'
+import { updateTimeEntryInSheet, writeTimeEntryToSheet, TimeEntryData } from '@/lib/google-sheets'
 
 export const runtime = 'nodejs'
 
@@ -132,8 +132,14 @@ export async function POST(request: NextRequest) {
 
     console.log('[Spreadsheet Update API] Sheet data to update:', sheetData)
 
-    // Google Sheetsで更新
-    await updateTimeEntryInSheet(sheetData)
+    // Google Sheetsで更新（見つからない場合は追記で補填）
+    try {
+      await updateTimeEntryInSheet(sheetData)
+    } catch (err) {
+      // 既存行が見つからない場合はappendで補完
+      console.warn('[Spreadsheet Update API] Update failed, falling back to append:', err)
+      await writeTimeEntryToSheet(sheetData)
+    }
 
     console.log('Successfully updated time entry in spreadsheet:', {
       timeEntryId,

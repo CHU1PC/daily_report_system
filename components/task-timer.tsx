@@ -58,6 +58,40 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
   const [timezone, setTimezone] = useState<TimezoneKey>('Asia/Tokyo')
   const [isSaving, setIsSaving] = useState(false)
 
+  // スプレッドシートを更新（行がなければ追記）する共通ヘルパー
+  const syncSpreadsheetEntry = async (entryId: string, context: string) => {
+    try {
+      const updateRes = await fetch('/api/spreadsheet/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeEntryId: entryId }),
+      })
+
+      if (updateRes.ok) {
+        console.log(`[syncSpreadsheetEntry] Spreadsheet updated (${context})`)
+        return
+      }
+
+      const updateError = await updateRes.json()
+      console.error(`[syncSpreadsheetEntry] Update failed (${context}):`, updateRes.status, updateError)
+
+      // 行が存在しないなどで更新できなかった場合は追記を試みる
+      const writeRes = await fetch('/api/spreadsheet/write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeEntryId: entryId }),
+      })
+      if (!writeRes.ok) {
+        const writeError = await writeRes.json()
+        console.error(`[syncSpreadsheetEntry] Fallback write failed (${context}):`, writeRes.status, writeError)
+      } else {
+        console.log(`[syncSpreadsheetEntry] Fallback write succeeded (${context})`)
+      }
+    } catch (spreadsheetError) {
+      console.error(`[syncSpreadsheetEntry] Error (${context}):`, spreadsheetError)
+    }
+  }
+
   // タイムゾーンをlocalStorageから読み込み
   useEffect(() => {
     const saved = localStorage.getItem('taskTimerTimezone')
@@ -230,46 +264,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
   const handleMidnightCrossover = async () => {
     if (!isRunning || !selectedTaskId || !startTime || !currentEntryId) return
 
-    // スプレッドシート更新用ヘルパー（updateエンドポイントを直接叩く）
-    const updateSpreadsheetEntry = async (entryId: string) => {
-      try {
-        const response = await fetch('/api/spreadsheet/update', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ timeEntryId: entryId }),
-        })
-
-        if (response.ok) {
-          console.log('[handleMidnightCrossover] Spreadsheet updated successfully')
-          return
-        }
-
-        const errorData = await response.json()
-        console.error('[handleMidnightCrossover] Failed to update spreadsheet:', response.status, errorData)
-
-        // 更新対象が見つからない場合は初回行として追記
-        if (response.status === 404) {
-          const writeRes = await fetch('/api/spreadsheet/write', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ timeEntryId: entryId }),
-          })
-          if (!writeRes.ok) {
-            const writeError = await writeRes.json()
-            console.error('[handleMidnightCrossover] Fallback write also failed:', writeError)
-          } else {
-            console.log('[handleMidnightCrossover] Fallback write succeeded')
-          }
-        }
-      } catch (spreadsheetError) {
-        console.error('[handleMidnightCrossover] Error updating spreadsheet:', spreadsheetError)
-      }
-    }
-
     // 前日の23:59:59を計算
     const previousDayEnd = new Date(startTime)
     previousDayEnd.setHours(23, 59, 59, 999)
@@ -279,8 +273,8 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
       endTime: previousDayEnd.toISOString(),
       comment: comment || pendingComment,
     })
-    // DB更新が成功した場合にスプレッドシートも確実に更新（update APIは見つからなければappendする）
-    await updateSpreadsheetEntry(currentEntryId)
+    // DB更新が成功した場合にスプレッドシートも確実に同期（updateが見つからなければwriteを試行）
+    await syncSpreadsheetEntry(currentEntryId, 'midnight crossover')
 
     // 新しい日の00:00:00で新しいタスクを開始
     const newDayStart = new Date(previousDayEnd)
@@ -364,6 +358,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
           comment: pendingComment,
         })
         console.log('[handleSaveEntry] Entry updated successfully')
+        await syncSpreadsheetEntry(currentEntryId, 'handleSaveEntry current')
 
         // 2. 過去の連続したエントリを遡って更新
         // 現在のエントリ情報を取得（開始時刻を知るため）
@@ -388,6 +383,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
               await onUpdateEntry(entry.id, {
                 comment: pendingComment
               })
+              await syncSpreadsheetEntry(entry.id, 'handleSaveEntry contiguous')
               
               // 次の探索のために基準時間を更新
               checkStartTime = new Date(entry.startTime).getTime()
