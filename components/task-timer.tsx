@@ -60,6 +60,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
 
   // スプレッドシートを更新（行がなければ追記）する共通ヘルパー
   const syncSpreadsheetEntry = async (entryId: string, context: string) => {
+    console.log(`[syncSpreadsheetEntry] start (${context})`, entryId)
     try {
       const updateRes = await fetch('/api/spreadsheet/update', {
         method: 'POST',
@@ -68,11 +69,16 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
       })
 
       if (updateRes.ok) {
-        console.log(`[syncSpreadsheetEntry] Spreadsheet updated (${context})`)
+        console.log(`[syncSpreadsheetEntry] Spreadsheet updated (${context}) status=${updateRes.status}`)
         return
       }
 
-      const updateError = await updateRes.json()
+      let updateError: unknown = null
+      try {
+        updateError = await updateRes.json()
+      } catch (e) {
+        updateError = 'Failed to parse update error response'
+      }
       console.error(`[syncSpreadsheetEntry] Update failed (${context}):`, updateRes.status, updateError)
 
       // 行が存在しないなどで更新できなかった場合は追記を試みる
@@ -82,10 +88,15 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
         body: JSON.stringify({ timeEntryId: entryId }),
       })
       if (!writeRes.ok) {
-        const writeError = await writeRes.json()
+        let writeError: unknown = null
+        try {
+          writeError = await writeRes.json()
+        } catch (e) {
+          writeError = 'Failed to parse write error response'
+        }
         console.error(`[syncSpreadsheetEntry] Fallback write failed (${context}):`, writeRes.status, writeError)
       } else {
-        console.log(`[syncSpreadsheetEntry] Fallback write succeeded (${context})`)
+        console.log(`[syncSpreadsheetEntry] Fallback write succeeded (${context}) status=${writeRes.status}`)
       }
     } catch (spreadsheetError) {
       console.error(`[syncSpreadsheetEntry] Error (${context}):`, spreadsheetError)
@@ -290,12 +301,20 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
       date: getDateInTimezone(newDayStart, timezone),
     }
 
-    onAddEntry(newEntry)
-    setCurrentEntryId(newEntry.id)
-    setStartTime(newDayStart.toISOString())
-    setElapsedSeconds(0)
+    // 新しいエントリを追加して、実際のIDを取得
+    try {
+      const savedEntry = await onAddEntry(newEntry)
+      const actualEntryId = savedEntry?.id || newEntry.id
+      console.log(`[handleMidnightCrossover] New entry created with ID: ${actualEntryId}`)
 
-    console.log(`Midnight crossover: Split task at ${previousDayEnd.toISOString()} and restarted at ${newDayStart.toISOString()}`)
+      setCurrentEntryId(actualEntryId)
+      setStartTime(newDayStart.toISOString())
+      setElapsedSeconds(0)
+
+      console.log(`Midnight crossover: Split task at ${previousDayEnd.toISOString()} and restarted at ${newDayStart.toISOString()}`)
+    } catch (error) {
+      console.error('[handleMidnightCrossover] Failed to create new entry:', error)
+    }
   }
 
   const handleStart = async () => {
@@ -359,7 +378,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
         })
         console.log('[handleSaveEntry] Entry updated successfully')
         await syncSpreadsheetEntry(currentEntryId, 'handleSaveEntry current')
-        await syncSpreadsheetEntry(currentEntryId, 'handleSaveEntry current')
 
         // 2. 過去の連続したエントリを遡って更新
         // 現在のエントリ情報を取得（開始時刻を知るため）
@@ -384,7 +402,6 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
               await onUpdateEntry(entry.id, {
                 comment: pendingComment
               })
-              await syncSpreadsheetEntry(entry.id, 'handleSaveEntry contiguous')
               await syncSpreadsheetEntry(entry.id, 'handleSaveEntry contiguous')
               
               // 次の探索のために基準時間を更新
