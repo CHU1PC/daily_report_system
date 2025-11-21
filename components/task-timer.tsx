@@ -359,6 +359,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
         })
         console.log('[handleSaveEntry] Entry updated successfully')
         await syncSpreadsheetEntry(currentEntryId, 'handleSaveEntry current')
+        await syncSpreadsheetEntry(currentEntryId, 'handleSaveEntry current')
 
         // 2. 過去の連続したエントリを遡って更新
         // 現在のエントリ情報を取得（開始時刻を知るため）
@@ -383,6 +384,7 @@ export function TaskTimer({ tasks, onAddEntry, onUpdateEntry, timeEntries, isHea
               await onUpdateEntry(entry.id, {
                 comment: pendingComment
               })
+              await syncSpreadsheetEntry(entry.id, 'handleSaveEntry contiguous')
               await syncSpreadsheetEntry(entry.id, 'handleSaveEntry contiguous')
               
               // 次の探索のために基準時間を更新
