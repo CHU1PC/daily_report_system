@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Task, TimeEntry } from "@/lib/types"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { generateId } from "@/lib/utils"
+import { useAuth } from "@/lib/contexts/AuthContext"
 
 interface ManualTimeEntryDialogProps {
   open: boolean
@@ -17,6 +18,7 @@ interface ManualTimeEntryDialogProps {
 }
 
 export function ManualTimeEntryDialog({ open, onOpenChange, tasks, onAdd }: ManualTimeEntryDialogProps) {
+  const { user } = useAuth()
   const [selectedTaskId, setSelectedTaskId] = useState("")
   const [comment, setComment] = useState("")
   const [startDate, setStartDate] = useState("")
@@ -24,6 +26,64 @@ export function ManualTimeEntryDialog({ open, onOpenChange, tasks, onAdd }: Manu
   const [startTime, setStartTime] = useState("")
   const [endTime, setEndTime] = useState("")
   const [timeError, setTimeError] = useState("")
+
+  // タスクをフィルタリング: completed/canceledを除外し、assignee_emailが一致するもの + グローバルタスクのみ表示
+  const availableTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      // linear_state_typeがcompleted, canceledの場合は除外
+      if (task.linear_state_type === 'completed' || task.linear_state_type === 'canceled') {
+        return false
+      }
+
+      // 1. グローバルタスク（全員が見える）
+      if (task.assignee_email === 'TaskForAll@task.com') {
+        return true
+      }
+
+      // 2. 自分にアサインされているタスク
+      if (user?.email && task.assignee_email === user.email) {
+        return true
+      }
+
+      return false
+    })
+  }, [tasks, user?.email])
+
+  // タスクをTeamごとにグループ化してソート
+  const sortedGroupedTasks = useMemo(() => {
+    const groupedAvailableTasks = availableTasks.reduce((groups, task) => {
+      let teamName: string
+      if (!task.linear_team_id && task.assignee_email === 'TaskForAll@task.com') {
+        // グローバルタスク: linear_identifierをラベルとして使用（なければ「その他」）
+        teamName = task.linear_identifier || 'その他'
+      } else if (task.linear_team_id) {
+        // 通常のLinearタスク: Team名を使用（linear_identifierから推測）
+        teamName = `Team: ${task.linear_identifier?.split('-')[0] || 'Unknown'}`
+      } else {
+        // その他
+        teamName = 'その他'
+      }
+
+      if (!groups[teamName]) {
+        groups[teamName] = []
+      }
+      groups[teamName].push(task)
+      return groups
+    }, {} as Record<string, typeof availableTasks>)
+
+    // グループをソート: Teamグループを上に、グローバルタスクグループを下に配置
+    return Object.entries(groupedAvailableTasks).sort(([teamA], [teamB]) => {
+      const isTeamA = teamA.startsWith('Team:')
+      const isTeamB = teamB.startsWith('Team:')
+
+      if (isTeamA && isTeamB) {
+        return teamA.localeCompare(teamB)
+      }
+      if (isTeamA) return -1
+      if (isTeamB) return 1
+      return teamA.localeCompare(teamB)
+    })
+  }, [availableTasks])
 
   // ダイアログが開いたときに今日の日付と現在時刻をデフォルト値として設定
   useEffect(() => {
@@ -149,14 +209,21 @@ export function ManualTimeEntryDialog({ open, onOpenChange, tasks, onAdd }: Manu
               <SelectTrigger>
                 <SelectValue placeholder="タスクを選択" />
               </SelectTrigger>
-              <SelectContent>
-                {tasks.map((task) => (
-                  <SelectItem key={task.id} value={task.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: task.color }} />
-                      {task.name}
+              <SelectContent className="max-h-[400px]">
+                {sortedGroupedTasks.map(([teamName, teamTasks]) => (
+                  <div key={teamName}>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">
+                      {teamName} ({teamTasks.length})
                     </div>
-                  </SelectItem>
+                    {teamTasks.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: task.color }} />
+                          {task.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </div>
                 ))}
               </SelectContent>
             </Select>

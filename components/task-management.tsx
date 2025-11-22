@@ -117,23 +117,37 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
     return { hours, minutes }
   }, [timeEntries])
 
-  const { todayTime, yesterdayTime, weekTime, monthTime } = useMemo(() => {
+  const { todayTime, yesterdayTime, weekTime, monthTime, lastWeekTime, lastMonthTime } = useMemo(() => {
     const today = new Date().toISOString().split("T")[0]
     const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0]
     const currentMonth = new Date().getMonth()
     const currentYear = new Date().getFullYear()
 
     const now = new Date()
+
+    // 今週の開始日（月曜日）
     const dayOfWeek = now.getDay()
     const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
     const weekStart = new Date(now)
     weekStart.setDate(now.getDate() + diff)
     weekStart.setHours(0, 0, 0, 0)
 
+    // 先週の開始日と終了日
+    const lastWeekStart = new Date(weekStart)
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+    const lastWeekEnd = new Date(weekStart)
+    lastWeekEnd.setMilliseconds(-1)
+
+    // 先月の開始日と終了日
+    const lastMonthStart = new Date(currentYear, currentMonth - 1, 1)
+    const lastMonthEnd = new Date(currentYear, currentMonth, 0, 23, 59, 59, 999)
+
     let todaySeconds = 0
     let yesterdaySeconds = 0
     let weekSeconds = 0
     let monthSeconds = 0
+    let lastWeekSeconds = 0
+    let lastMonthSeconds = 0
 
     timeEntries.forEach((entry) => {
       if (!entry.endTime) return // 進行中のエントリはスキップ
@@ -142,18 +156,31 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
       const duration = (end - start) / 1000
       const entryDate = new Date(entry.startTime)
 
+      // 今日
       if (entry.date === today) {
         todaySeconds += duration
       } else if (entry.date === yesterday) {
         yesterdaySeconds += duration
       }
 
+      // 今週
       if (entryDate >= weekStart) {
         weekSeconds += duration
       }
 
+      // 今月
       if (entryDate.getMonth() === currentMonth && entryDate.getFullYear() === currentYear) {
         monthSeconds += duration
+      }
+
+      // 先週
+      if (entryDate >= lastWeekStart && entryDate <= lastWeekEnd) {
+        lastWeekSeconds += duration
+      }
+
+      // 先月
+      if (entryDate >= lastMonthStart && entryDate <= lastMonthEnd) {
+        lastMonthSeconds += duration
       }
     })
 
@@ -173,6 +200,14 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
       monthTime: {
         hours: Math.floor(monthSeconds / 3600),
         minutes: Math.floor((monthSeconds % 3600) / 60),
+      },
+      lastWeekTime: {
+        hours: Math.floor(lastWeekSeconds / 3600),
+        minutes: Math.floor((lastWeekSeconds % 3600) / 60),
+      },
+      lastMonthTime: {
+        hours: Math.floor(lastMonthSeconds / 3600),
+        minutes: Math.floor((lastMonthSeconds % 3600) / 60),
       },
     }
   }, [timeEntries])
@@ -545,9 +580,23 @@ export function TaskManagement({ tasks, timeEntries, onTasksChange, onUpdateTask
             </div>
 
             <div>
+              <div className="text-sm text-muted-foreground mb-1">先月:</div>
+              <div className="text-lg font-semibold text-muted-foreground">
+                {lastMonthTime.hours}時間{lastMonthTime.minutes}分
+              </div>
+            </div>
+
+            <div>
               <div className="text-sm text-muted-foreground mb-1">今週:</div>
               <div className="text-xl font-bold">
                 {weekTime.hours}時間{weekTime.minutes}分
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">先週:</div>
+              <div className="text-lg font-semibold text-muted-foreground">
+                {lastWeekTime.hours}時間{lastWeekTime.minutes}分
               </div>
             </div>
 
