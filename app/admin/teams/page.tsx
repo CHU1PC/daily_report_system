@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Accordion,
   AccordionContent,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/table"
 import {
   Loader2, AlertCircle, Users,
-  ArrowLeft, ExternalLink
+  ArrowLeft, ExternalLink, Filter
 } from 'lucide-react'
 
 interface LinearIssue {
@@ -97,6 +98,8 @@ export default function TeamsPage() {
   const [teams, setTeams] = useState<TeamWithIssues[]>([])
   const [teamsLoading, setTeamsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<string>>(new Set())
+  const [showTeamSelector, setShowTeamSelector] = useState(false)
 
   useEffect(() => {
     if (!authLoading) {
@@ -132,6 +135,30 @@ export default function TeamsPage() {
   }
 
   const getMemberName = (member: TeamMember) => member.name || member.email
+
+  const toggleTeamSelection = (teamId: string) => {
+    setSelectedTeamIds((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(teamId)) {
+        newSet.delete(teamId)
+      } else {
+        newSet.add(teamId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllTeams = () => {
+    setSelectedTeamIds(new Set(teams.map(t => t.id)))
+  }
+
+  const deselectAllTeams = () => {
+    setSelectedTeamIds(new Set())
+  }
+
+  const filteredTeams = selectedTeamIds.size > 0
+    ? teams.filter(team => selectedTeamIds.has(team.id))
+    : teams
 
   if (authLoading || teamsLoading) {
     return (
@@ -172,17 +199,97 @@ export default function TeamsPage() {
         )}
 
 
+        {/* Teamフィルター */}
+        {teams.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  <CardTitle className="text-base">Team選択</CardTitle>
+                  {selectedTeamIds.size > 0 && (
+                    <Badge variant="secondary">
+                      {selectedTeamIds.size}個選択中
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTeamSelector(!showTeamSelector)}
+                >
+                  {showTeamSelector ? '閉じる' : '開く'}
+                </Button>
+              </div>
+            </CardHeader>
+            {showTeamSelector && (
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllTeams}
+                    >
+                      すべて選択
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={deselectAllTeams}
+                    >
+                      選択解除
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {teams.map((team) => (
+                      <div
+                        key={team.id}
+                        className="flex items-center space-x-2 p-2 rounded border hover:bg-accent cursor-pointer"
+                        onClick={() => toggleTeamSelection(team.id)}
+                      >
+                        <Checkbox
+                          checked={selectedTeamIds.has(team.id)}
+                          onCheckedChange={() => toggleTeamSelection(team.id)}
+                        />
+                        <div className="flex items-center gap-2 flex-1">
+                          {team.color && (
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: team.color }}
+                            />
+                          )}
+                          <span className="text-sm font-medium">{team.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {team.key}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
         {/* Team一覧 */}
         <div className="space-y-4">
           {teams.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                Teamがありません。「Linearから同期」ボタンをクリックしてTeam情報を取得してください。
+                Teamがありません。Webhook経由でLinearから同期されます。
+              </CardContent>
+            </Card>
+          ) : filteredTeams.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                選択されたTeamがありません。上記のフィルターからTeamを選択してください。
               </CardContent>
             </Card>
           ) : (
             <Accordion type="multiple" className="space-y-4">
-              {teams.map((team) => (
+              {filteredTeams.map((team) => (
                 <AccordionItem
                   key={team.id}
                   value={team.id}
