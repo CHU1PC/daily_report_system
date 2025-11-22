@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev -H 192.168.30.10 -p 3000",
-    "dev:host": "next dev -H 192.168.30.10 -p 3000",
+    "dev": "next dev -H",
+    "dev:host": "next dev -H",
     "lint": "eslint .",
     "start": "next start",
     "setup-webhooks": "tsx scripts/setup-linear-webhooks.ts",
