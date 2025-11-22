@@ -113,11 +113,10 @@ export async function GET() {
               // TeamのIssuesを取得（Tasksテーブルから）- ユーザーに割り当てられたもののみ
               const { data: issues, error: issuesError } = await supabase
                 .from('tasks')
-                .select('id, name, linear_issue_id, linear_team_id, linear_state_type, linear_identifier, description, assignee_email, assignee_name, priority, linear_project_id')
+                .select('id, name, linear_issue_id, linear_team_id, linear_state_type, linear_identifier, description, assignee_email, assignee_name, priority, linear_url')
                 .eq('linear_team_id', team.linear_team_id)
                 .eq('assignee_email', user.email)  // ユーザーに割り当てられたIssueのみ
                 .not('linear_issue_id', 'is', null)
-                .order('created_at', { ascending: false })
 
               if (issuesError) {
                 console.error('Error fetching issues for team:', team.id, issuesError)
@@ -125,102 +124,25 @@ export async function GET() {
 
               console.log(`[API] Fetched ${issues?.length || 0} issues for user ${user.email} in team ${team.name} (${team.linear_team_id})`)
 
-              // Issueデータを整形
-              const formattedIssues = (issues || []).map((issue) => {
-                // linear_identifierがある場合はそれを使用、なければnameから抽出
-                const identifier = issue.linear_identifier || issue.name.match(/^\[([^\]]+)\]/)?.[1] || issue.linear_issue_id || 'Unknown'
-                const title = issue.name.replace(/^\[[^\]]+\]\s*/, '') // "[TEAM-123] Title" -> "Title"
-
-                return {
-                  id: issue.id,
-                  identifier,
-                  title,
-                  state: issue.linear_state_type || 'unknown', // 実際のステータスを使用
-                  assignee_email: issue.assignee_email,
-                  assignee_name: issue.assignee_name,
-                  priority: issue.priority || 0,
-                  linear_project_id: issue.linear_project_id,
+              // Issueをソート（ステータス優先、次に優先度）
+              const sortedIssues = (issues || []).sort((a, b) => {
+                // ステータスでソート: unstarted, started, completed, canceled
+                const statusOrder: Record<string, number> = {
+                  'unstarted': 1,
+                  'started': 2,
+                  'completed': 3,
+                  'canceled': 4
                 }
+                const orderA = statusOrder[a.linear_state_type] || 99
+                const orderB = statusOrder[b.linear_state_type] || 99
+
+                if (orderA !== orderB) return orderA - orderB
+
+                // 同じステータスなら優先度でソート
+                const priorityA = a.priority || 0
+                const priorityB = b.priority || 0
+                return priorityA - priorityB
               })
-
-              // Teamに属するProjectsを取得（linear_team_idで紐付け）
-              console.log(`[API] Fetching projects for team ${team.name}, searching with linear_team_id: '${team.linear_team_id}'`)
-
-              const { data: projects, error: projectsError } = await supabase
-                .from('linear_projects')
-                .select('id, name, linear_project_id, linear_team_id')
-                .eq('linear_team_id', team.linear_team_id)
-                .order('name')
-
-              if (projectsError) {
-                console.error('Error fetching projects for team:', team.id, projectsError)
-              }
-
-              console.log(`[API] Projects found for team ${team.name} (linear_team_id: ${team.linear_team_id}):`, projects?.length || 0)
-              if (projects && projects.length > 0) {
-                console.log('[API] Project details:', projects.map(p => ({
-                  name: p.name,
-                  linear_project_id: p.linear_project_id,
-                  linear_team_id: p.linear_team_id
-                })))
-              }
-              console.log('[API] Issue linear_project_ids (first 5):', formattedIssues.slice(0, 5).map(i => ({ identifier: i.identifier, linear_project_id: i.linear_project_id })))
-
-              // Issueソート関数: Done以外を上に、その上で優先度順（高い方が上）
-              const sortIssues = (issues: typeof formattedIssues) => {
-                return issues.sort((a, b) => {
-                  // まずDone（completed/canceled）かどうかで分ける
-                  const aIsDone = a.state === 'completed' || a.state === 'canceled'
-                  const bIsDone = b.state === 'completed' || b.state === 'canceled'
-
-                  if (aIsDone !== bIsDone) {
-                    return aIsDone ? 1 : -1 // Done以外を上に
-                  }
-
-                  // 同じグループ内では優先度順（1が最高、4が最低、0は未設定）
-                  const aPriority = a.priority || 999 // 優先度未設定は最下位
-                  const bPriority = b.priority || 999
-
-                  return aPriority - bPriority // 数字が小さい方（高優先度）が上
-                })
-              }
-
-              // ProjectごとにIssueを振り分け、ソート
-              const projectsWithIssues = (projects || []).map((project) => {
-                const projectIssues = formattedIssues.filter(
-                  (issue) => {
-                    const matches = issue.linear_project_id === project.linear_project_id
-                    if (!matches && formattedIssues.indexOf(issue) < 3) {
-                      console.log(`[API] Issue ${issue.identifier}: '${issue.linear_project_id}' !== '${project.linear_project_id}' (types: ${typeof issue.linear_project_id} vs ${typeof project.linear_project_id})`)
-                    }
-                    return matches
-                  }
-                )
-                console.log(`[API] Project "${project.name}" (${project.linear_project_id}): ${projectIssues.length} issues`)
-                return {
-                  id: project.id,
-                  linear_project_id: project.linear_project_id,
-                  name: project.name,
-                  issues: sortIssues(projectIssues),
-                }
-              })
-
-              // Projectに属さないIssueがあれば「その他」として追加
-              const issuesWithoutProject = formattedIssues.filter(
-                (issue) => !issue.linear_project_id ||
-                !(projects || []).some(p => p.linear_project_id === issue.linear_project_id)
-              )
-
-              console.log(`[API] Issues without project for team ${team.name}: ${issuesWithoutProject.length}`)
-              if (issuesWithoutProject.length > 0) {
-                console.log(`[API] First 3 unmatched issues:`, issuesWithoutProject.slice(0, 3).map(i => ({ identifier: i.identifier, linear_project_id: i.linear_project_id })))
-                projectsWithIssues.push({
-                  id: 'no-project',
-                  linear_project_id: 'no-project',
-                  name: 'プロジェクト未割り当て',
-                  issues: sortIssues(issuesWithoutProject),
-                })
-              }
 
               return {
                 id: team.id,
@@ -228,7 +150,9 @@ export async function GET() {
                 name: team.name,
                 key: team.key,
                 color: team.color,
-                projects: projectsWithIssues,
+                url: team.url,
+                description: team.description,
+                issues: sortedIssues,
               }
             })
         )

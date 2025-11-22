@@ -7,29 +7,20 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  Loader2, AlertCircle, ChevronDown, ChevronRight, Users, Briefcase, CheckSquare, Filter, Clock, CircleDot
+  Loader2, AlertCircle, ChevronDown, ChevronRight, Users, CheckSquare, Filter, Clock, CircleDot
 } from 'lucide-react'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 
-interface Issue {
+interface LinearIssue {
   id: string
-  identifier: string
-  title: string
-  state: string
+  name: string
+  linear_issue_id: string
+  linear_identifier: string
+  linear_state_type: string
+  priority: number
   assignee_email?: string
   assignee_name?: string
-  priority?: number
-}
-
-interface Project {
-  id: string
-  linear_project_id: string
-  name: string
-  issues: Issue[]
+  linear_url?: string
+  description?: string
 }
 
 interface Team {
@@ -38,7 +29,9 @@ interface Team {
   name: string
   key: string
   color?: string
-  projects: Project[]
+  url?: string
+  description?: string
+  issues: LinearIssue[]
 }
 
 interface CurrentTask {
@@ -66,7 +59,6 @@ export function UserTeamViewer() {
   const [error, setError] = useState<string | null>(null)
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set())
   const [expandedTeams, setExpandedTeams] = useState<Set<string>>(new Set())
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [showUserSelector, setShowUserSelector] = useState(false)
 
@@ -88,15 +80,12 @@ export function UserTeamViewer() {
       const data = await res.json()
       console.log('[UserTeamViewer] Fetched users data:', data.users)
 
-      // 各ユーザーのTeamとProjectを詳細にログ出力
+      // 各ユーザーのTeamとIssueを詳細にログ出力
       data.users?.forEach((user: UserTeamData) => {
         console.log(`[UserTeamViewer] User: ${user.name || user.email}`)
         user.teams.forEach((team) => {
           console.log(`  Team: ${team.name} (linear_team_id: ${team.linear_team_id})`)
-          console.log(`    Projects: ${team.projects.length}`)
-          team.projects.forEach((project) => {
-            console.log(`      - ${project.name} (linear_project_id: ${project.linear_project_id}, issues: ${project.issues.length})`)
-          })
+          console.log(`    Issues: ${team.issues.length}`)
         })
       })
 
@@ -133,18 +122,6 @@ export function UserTeamViewer() {
     })
   }
 
-  const toggleProject = (projectKey: string) => {
-    setExpandedProjects((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(projectKey)) {
-        newSet.delete(projectKey)
-      } else {
-        newSet.add(projectKey)
-      }
-      return newSet
-    })
-  }
-
   const getUserName = (user: UserTeamData) => user.name || user.email
 
   const formatDuration = (startTime: string) => {
@@ -159,11 +136,23 @@ export function UserTeamViewer() {
 
   const getPriorityInfo = (priority?: number) => {
     switch (priority) {
-      case 1: return { label: '緊急', color: 'bg-red-600 text-white' }
-      case 2: return { label: '高', color: 'bg-orange-600 text-white' }
-      case 3: return { label: '中', color: 'bg-yellow-600 text-white' }
-      case 4: return { label: '低', color: 'bg-blue-600 text-white' }
-      default: return { label: 'なし', color: 'bg-gray-600 text-white' }
+      case 1: return { label: '緊急', color: 'bg-red-500 text-white' }
+      case 2: return { label: '高', color: 'bg-orange-500 text-white' }
+      case 3: return { label: '中', color: 'bg-yellow-500 text-white' }
+      case 4: return { label: '低', color: 'bg-blue-500 text-white' }
+      default: return { label: 'なし', color: 'bg-gray-400 text-white' }
+    }
+  }
+
+  const getStatusInfo = (stateType: string) => {
+    if (stateType === 'completed') {
+      return { label: 'completed', color: 'bg-green-600 text-white' }
+    } else if (stateType === 'canceled') {
+      return { label: 'canceled', color: 'bg-gray-600 text-white' }
+    } else if (stateType === 'started') {
+      return { label: 'started', color: 'bg-blue-600 text-white' }
+    } else {
+      return { label: 'unstarted', color: 'bg-blue-600 text-white' }
     }
   }
 
@@ -436,93 +425,45 @@ export function UserTeamViewer() {
                                   </div>
                                 </div>
                                 <Badge variant="outline" className="text-xs">
-                                  <Briefcase className="w-3 h-3 mr-1" />
-                                  {team.projects.length} プロジェクト
+                                  <CheckSquare className="w-3 h-3 mr-1" />
+                                  {team.issues.length} Issue
                                 </Badge>
                               </div>
 
                               {isTeamExpanded && (
-                                <div className="ml-6 mt-2 space-y-2">
-                                  {team.projects.length === 0 ? (
+                                <div className="ml-6 mt-2 space-y-1">
+                                  {team.issues.length === 0 ? (
                                     <div className="text-sm text-muted-foreground py-2 text-center border border-dashed rounded">
-                                      プロジェクトがありません
+                                      Issueがありません
                                     </div>
                                   ) : (
-                                    team.projects.map((project) => {
-                                      const projectKey = `${teamKey}-${project.linear_project_id}`
-                                      const isProjectExpanded = expandedProjects.has(projectKey)
+                                    team.issues.map((issue) => {
+                                      const priorityInfo = getPriorityInfo(issue.priority)
+                                      const statusInfo = getStatusInfo(issue.linear_state_type)
 
                                       return (
-                                        <div key={project.linear_project_id} className="border rounded p-2 space-y-2 bg-muted/30">
-                                          <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 flex-1">
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => toggleProject(projectKey)}
-                                                className="p-0 h-auto"
-                                              >
-                                                {isProjectExpanded ? (
-                                                  <ChevronDown className="w-4 h-4" />
-                                                ) : (
-                                                  <ChevronRight className="w-4 h-4" />
-                                                )}
-                                              </Button>
-                                              <span className="text-sm font-medium">{project.name}</span>
-                                            </div>
-                                            <Badge variant="outline" className="text-xs">
-                                              <CheckSquare className="w-3 h-3 mr-1" />
-                                              {project.issues.length} Issue
+                                        <div
+                                          key={issue.id}
+                                          className="flex flex-col gap-2 p-2 bg-background rounded text-sm hover:bg-accent transition-colors border"
+                                        >
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <Badge variant="secondary" className="text-xs font-mono">
+                                              {issue.linear_identifier}
                                             </Badge>
+                                            <span className="flex-1 truncate font-medium">
+                                              {issue.name.replace(/^\[.*?\]\s*/, '')}
+                                            </span>
                                           </div>
-
-                                          {isProjectExpanded && (
-                                            <div className="ml-6 mt-2 space-y-1">
-                                              {project.issues.length === 0 ? (
-                                                <div className="text-xs text-muted-foreground py-2 text-center border border-dashed rounded">
-                                                  Issueがありません
-                                                </div>
-                                              ) : (
-                                                project.issues.map((issue) => {
-                                                  const priorityInfo = getPriorityInfo(issue.priority)
-                                                  const stateColor =
-                                                    issue.state === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200' :
-                                                    issue.state === 'canceled' ? 'bg-gray-100 text-gray-800 dark:bg-gray-950 dark:text-gray-200' :
-                                                    issue.state === 'started' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200' :
-                                                    'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200'
-
-                                                  return (
-                                                    <div
-                                                      key={issue.id}
-                                                      className="flex flex-col gap-2 p-2 bg-background rounded text-sm hover:bg-accent transition-colors border"
-                                                    >
-                                                      <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge variant="secondary" className="text-xs font-mono">
-                                                          {issue.identifier}
-                                                        </Badge>
-                                                        <span className="flex-1 truncate font-medium">{issue.title}</span>
-                                                      </div>
-                                                      <div className="flex items-center gap-2 flex-wrap">
-                                                        <Badge className={`text-xs ${stateColor}`}>
-                                                          {issue.state}
-                                                        </Badge>
-                                                        {issue.priority && issue.priority > 0 && (
-                                                          <Badge className={`text-xs ${priorityInfo.color}`}>
-                                                            {priorityInfo.label}
-                                                          </Badge>
-                                                        )}
-                                                        {issue.assignee_name && (
-                                                          <Badge variant="outline" className="text-xs">
-                                                            {issue.assignee_name}
-                                                          </Badge>
-                                                        )}
-                                                      </div>
-                                                    </div>
-                                                  )
-                                                })
-                                              )}
-                                            </div>
-                                          )}
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <Badge className={`text-xs ${statusInfo.color}`}>
+                                              {statusInfo.label}
+                                            </Badge>
+                                            {issue.priority > 0 && (
+                                              <Badge className={`text-xs ${priorityInfo.color}`}>
+                                                {priorityInfo.label}
+                                              </Badge>
+                                            )}
+                                          </div>
                                         </div>
                                       )
                                     })
