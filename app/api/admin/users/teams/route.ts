@@ -83,79 +83,88 @@ export async function GET() {
           console.error('Error fetching active time entries for user:', user.user_id, timeEntriesError)
         }
 
-        // ユーザーが所属するTeamを取得
-        const { data: memberships, error: membershipsError } = await supabase
-          .from('user_team_memberships')
-          .select(`
-            linear_teams (
-              id,
-              linear_team_id,
-              name,
-              key,
-              description,
-              color
-            )
-          `)
-          .eq('user_id', user.user_id)
+        // ユーザーにアサインされているすべてのIssueを取得
+        const { data: userIssues, error: issuesError } = await supabase
+          .from('tasks')
+          .select('id, name, linear_issue_id, linear_team_id, linear_state_type, linear_identifier, description, assignee_email, assignee_name, priority, linear_url')
+          .eq('assignee_email', user.email)
+          .not('linear_issue_id', 'is', null)
 
-        if (membershipsError) {
-          console.error('Error fetching memberships for user:', user.user_id, membershipsError)
+        if (issuesError) {
+          console.error('Error fetching issues for user:', user.user_id, issuesError)
           return { ...user, teams: [], currentTask }
         }
 
-        // 各TeamのProjectsとIssuesを取得
-        const teams = await Promise.all(
-          (memberships || [])
-            .filter((m: any) => m.linear_teams)
-            .map(async (membership: any) => {
-              const team = membership.linear_teams
+        console.log(`[API] Fetched ${userIssues?.length || 0} total issues for user ${user.email}`)
 
-              // TeamのIssuesを取得（Tasksテーブルから）- ユーザーに割り当てられたもののみ
-              const { data: issues, error: issuesError } = await supabase
-                .from('tasks')
-                .select('id, name, linear_issue_id, linear_team_id, linear_state_type, linear_identifier, description, assignee_email, assignee_name, priority, linear_url')
-                .eq('linear_team_id', team.linear_team_id)
-                .eq('assignee_email', user.email)  // ユーザーに割り当てられたIssueのみ
-                .not('linear_issue_id', 'is', null)
+        // TeamごとにIssueをグループ化
+        const teamIssuesMap = new Map<string, any[]>()
 
-              if (issuesError) {
-                console.error('Error fetching issues for team:', team.id, issuesError)
-              }
+        ;(userIssues || []).forEach((issue) => {
+          if (!issue.linear_team_id) return
 
-              console.log(`[API] Fetched ${issues?.length || 0} issues for user ${user.email} in team ${team.name} (${team.linear_team_id})`)
+          if (!teamIssuesMap.has(issue.linear_team_id)) {
+            teamIssuesMap.set(issue.linear_team_id, [])
+          }
 
-              // Issueをソート（ステータス優先、次に優先度）
-              const sortedIssues = (issues || []).sort((a, b) => {
-                // ステータスでソート: unstarted, started, completed, canceled
-                const statusOrder: Record<string, number> = {
-                  'unstarted': 1,
-                  'started': 2,
-                  'completed': 3,
-                  'canceled': 4
-                }
-                const orderA = statusOrder[a.linear_state_type] || 99
-                const orderB = statusOrder[b.linear_state_type] || 99
+          teamIssuesMap.get(issue.linear_team_id)!.push(issue)
+        })
 
-                if (orderA !== orderB) return orderA - orderB
+        // 各TeamのIssuesをソート
+        teamIssuesMap.forEach((issues) => {
+          issues.sort((a, b) => {
+            // ステータスでソート: unstarted, started, completed, canceled
+            const statusOrder: Record<string, number> = {
+              'unstarted': 1,
+              'started': 2,
+              'completed': 3,
+              'canceled': 4
+            }
+            const orderA = statusOrder[a.linear_state_type] || 99
+            const orderB = statusOrder[b.linear_state_type] || 99
 
-                // 同じステータスなら優先度でソート
-                const priorityA = a.priority || 0
-                const priorityB = b.priority || 0
-                return priorityA - priorityB
-              })
+            if (orderA !== orderB) return orderA - orderB
 
-              return {
-                id: team.id,
-                linear_team_id: team.linear_team_id,
-                name: team.name,
-                key: team.key,
-                color: team.color,
-                url: team.url,
-                description: team.description,
-                issues: sortedIssues,
-              }
-            })
-        )
+            // 同じステータスなら優先度でソート
+            const priorityA = a.priority || 0
+            const priorityB = b.priority || 0
+            return priorityA - priorityB
+          })
+        })
+
+        // Team情報を取得
+        const teamIds = Array.from(teamIssuesMap.keys())
+
+        if (teamIds.length === 0) {
+          return { ...user, teams: [], currentTask }
+        }
+
+        const { data: teamsData, error: teamsError } = await supabase
+          .from('linear_teams')
+          .select('id, linear_team_id, name, key, description, color, url')
+          .in('linear_team_id', teamIds)
+
+        if (teamsError) {
+          console.error('Error fetching teams:', teamsError)
+          return { ...user, teams: [], currentTask }
+        }
+
+        // Teamsデータを整形
+        const teams = (teamsData || []).map((team) => {
+          const issues = teamIssuesMap.get(team.linear_team_id) || []
+          console.log(`[API] Team ${team.name}: ${issues.length} issues for user ${user.email}`)
+
+          return {
+            id: team.id,
+            linear_team_id: team.linear_team_id,
+            name: team.name,
+            key: team.key,
+            color: team.color,
+            url: team.url,
+            description: team.description,
+            issues,
+          }
+        })
 
         return {
           user_id: user.user_id,
