@@ -70,25 +70,25 @@ const PRIORITY_LABELS: Record<number, string> = {
 }
 
 const PRIORITY_COLORS: Record<number, string> = {
-  0: 'bg-gray-100 text-gray-800',
-  1: 'bg-red-100 text-red-800',
-  2: 'bg-orange-100 text-orange-800',
-  3: 'bg-yellow-100 text-yellow-800',
-  4: 'bg-blue-100 text-blue-800',
+  0: 'bg-gray-400 text-white',
+  1: 'bg-red-500 text-white',
+  2: 'bg-orange-500 text-white',
+  3: 'bg-yellow-500 text-white',
+  4: 'bg-blue-500 text-white',
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  'unstarted': '未着手',
-  'started': '進行中',
-  'completed': '完了',
-  'canceled': 'キャンセル',
+  'unstarted': 'unstarted',
+  'started': 'started',
+  'completed': 'completed',
+  'canceled': 'canceled',
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  'unstarted': 'bg-gray-100 text-gray-800',
-  'started': 'bg-blue-100 text-blue-800',
-  'completed': 'bg-green-100 text-green-800',
-  'canceled': 'bg-gray-100 text-gray-600',
+  'unstarted': 'bg-blue-600 text-white',
+  'started': 'bg-blue-600 text-white',
+  'completed': 'bg-green-600 text-white',
+  'canceled': 'bg-gray-600 text-white',
 }
 
 export default function TeamsPage() {
@@ -281,93 +281,105 @@ export default function TeamsPage() {
                             このTeamにアサインされているIssueを持つメンバーがいません
                           </div>
                         ) : (
-                          <div className="space-y-6">
+                          <Accordion type="multiple" className="space-y-3">
                             {team.members.map((member) => (
-                              <div key={member.user_id} className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div>
-                                      <div className="font-medium">
-                                        {getMemberName(member)}
+                              <AccordionItem
+                                key={member.user_id}
+                                value={member.user_id}
+                                className="border rounded-lg"
+                              >
+                                <AccordionTrigger className="hover:no-underline px-4 py-3">
+                                  <div className="flex items-center justify-between w-full pr-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="text-left">
+                                        <div className="font-medium">
+                                          {getMemberName(member)}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground">
+                                          {member.email}
+                                        </div>
                                       </div>
+                                      <Badge
+                                        variant={member.role === 'admin' ? 'default' : 'secondary'}
+                                      >
+                                        {member.role === 'admin' ? '管理者' : 'ユーザー'}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline">
+                                        {member.issues.length}件のIssue
+                                      </Badge>
                                       <div className="text-sm text-muted-foreground">
-                                        {member.email}
+                                        優先度スコア: {member.priorityScore}
                                       </div>
                                     </div>
-                                    <Badge
-                                      variant={member.role === 'admin' ? 'default' : 'secondary'}
-                                    >
-                                      {member.role === 'admin' ? '管理者' : 'ユーザー'}
-                                    </Badge>
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    優先度スコア: {member.priorityScore}
-                                  </div>
-                                </div>
-
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead className="w-[120px]">Issue ID</TableHead>
-                                      <TableHead>タイトル</TableHead>
-                                      <TableHead className="w-[100px]">優先度</TableHead>
-                                      <TableHead className="w-[100px]">ステータス</TableHead>
-                                      <TableHead className="w-[50px]"></TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {member.issues.map((issue) => (
-                                      <TableRow key={issue.id}>
-                                        <TableCell className="font-mono text-sm">
-                                          {issue.linear_identifier}
-                                        </TableCell>
-                                        <TableCell>
-                                          <div className="max-w-md">
-                                            <div className="font-medium truncate">
-                                              {issue.name.replace(/^\[.*?\]\s*/, '')}
-                                            </div>
-                                            {issue.description && (
-                                              <div className="text-xs text-muted-foreground truncate mt-1">
-                                                {issue.description}
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="px-4 pb-3">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead className="w-[120px]">Issue ID</TableHead>
+                                          <TableHead>タイトル</TableHead>
+                                          <TableHead className="w-[100px]">優先度</TableHead>
+                                          <TableHead className="w-[100px]">ステータス</TableHead>
+                                          <TableHead className="w-[50px]"></TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {member.issues.map((issue) => (
+                                          <TableRow key={issue.id}>
+                                            <TableCell className="font-mono text-sm">
+                                              {issue.linear_identifier}
+                                            </TableCell>
+                                            <TableCell>
+                                              <div className="max-w-md">
+                                                <div className="font-medium truncate">
+                                                  {issue.name.replace(/^\[.*?\]\s*/, '')}
+                                                </div>
+                                                {issue.description && (
+                                                  <div className="text-xs text-muted-foreground truncate mt-1">
+                                                    {issue.description}
+                                                  </div>
+                                                )}
                                               </div>
-                                            )}
-                                          </div>
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge
-                                            className={PRIORITY_COLORS[issue.priority || 0]}
-                                            variant="outline"
-                                          >
-                                            {PRIORITY_LABELS[issue.priority || 0]}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge
-                                            className={STATUS_COLORS[issue.linear_state_type] || STATUS_COLORS.unstarted}
-                                            variant="outline"
-                                          >
-                                            {STATUS_LABELS[issue.linear_state_type] || issue.linear_state_type}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                          {issue.linear_url && (
-                                            <a
-                                              href={issue.linear_url}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              className="text-muted-foreground hover:text-foreground"
-                                            >
-                                              <ExternalLink className="w-4 h-4" />
-                                            </a>
-                                          )}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge
+                                                className={PRIORITY_COLORS[issue.priority || 0]}
+                                              >
+                                                {PRIORITY_LABELS[issue.priority || 0]}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              <Badge
+                                                className={STATUS_COLORS[issue.linear_state_type] || STATUS_COLORS.unstarted}
+                                              >
+                                                {STATUS_LABELS[issue.linear_state_type] || issue.linear_state_type}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              {issue.linear_url && (
+                                                <a
+                                                  href={issue.linear_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-muted-foreground hover:text-foreground"
+                                                >
+                                                  <ExternalLink className="w-4 h-4" />
+                                                </a>
+                                              )}
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
                             ))}
-                          </div>
+                          </Accordion>
                         )}
                       </CardContent>
                     </AccordionContent>
