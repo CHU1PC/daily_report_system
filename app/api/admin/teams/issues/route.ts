@@ -58,11 +58,12 @@ export async function GET() {
             .filter((email): email is string => email != null)
         )
 
-        // ユーザー情報を取得
+        // ユーザー情報を取得（承認済みのみ）
         const { data: users } = await supabase
           .from('user_approvals')
           .select('user_id, email, name, role')
           .in('email', Array.from(assigneeEmails))
+          .eq('approved', true)
 
         const userMap = new Map(
           (users || []).map(user => [user.email, user])
