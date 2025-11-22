@@ -5,16 +5,11 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/contexts/AuthContext"
 import { logger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import Link from "next/link"
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const { signIn, signInWithGoogle, user, isApproved, loading: authLoading } = useAuth()
+  const { signInWithGoogle, user, isApproved, loading: authLoading } = useAuth()
   const router = useRouter()
 
   // 既にログイン済みの場合はリダイレクト
@@ -30,32 +25,6 @@ export default function LoginPage() {
     }
   }, [user, isApproved, authLoading, router])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-
-    const { error } = await signIn(email, password)
-
-    if (error) {
-      setError(error.message || "ログインに失敗しました")
-      setLoading(false)
-    } else {
-      // ログイン成功後、signIn内で承認状態が既に更新されている
-      // 少し待ってReactの状態更新が反映されるのを待つ
-      await new Promise(resolve => setTimeout(resolve, 300))
-
-      // isApprovedの現在の値を確認してリダイレクト
-      console.log("📍 Login page - isApproved:", isApproved)
-
-      if (isApproved === true) {
-        router.push("/")
-      } else {
-        router.push("/pending-approval")
-      }
-    }
-  }
-
   const handleGoogleSignIn = async () => {
     setError(null)
     setGoogleLoading(true)
@@ -66,7 +35,6 @@ export default function LoginPage() {
       setError(error.message || "Googleログインに失敗しました")
       setGoogleLoading(false)
     }
-    // Google OAuthはリダイレクトするため、ここではローディング状態を維持
   }
 
   return (
@@ -74,70 +42,24 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-bold">DayLog</h1>
-          <p className="mt-2 text-muted-foreground">アカウントにログイン</p>
+          <p className="mt-2 text-muted-foreground">Googleアカウントでログイン</p>
         </div>
 
         <div className="bg-card border border-border rounded-lg p-6 sm:p-8 space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                メールアドレス
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="example@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={loading}
-              />
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+              {error}
             </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                パスワード
-              </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                minLength={6}
-              />
-            </div>
-
-            {error && (
-              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
-                {error}
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading || googleLoading}>
-              {loading ? "ログイン中..." : "ログイン"}
-            </Button>
-          </form>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">または</span>
-            </div>
-          </div>
+          )}
 
           <Button
             type="button"
-            variant="outline"
+            size="lg"
             className="w-full"
             onClick={handleGoogleSignIn}
-            disabled={loading || googleLoading}
+            disabled={googleLoading}
           >
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+            <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 fill="#4285F4"
@@ -158,12 +80,9 @@ export default function LoginPage() {
             {googleLoading ? "Google認証中..." : "Googleでログイン"}
           </Button>
 
-          <div className="text-center text-sm">
-            <span className="text-muted-foreground">アカウントをお持ちでない方は </span>
-            <Link href="/signup" className="text-primary hover:underline">
-              新規登録
-            </Link>
-          </div>
+          <p className="text-center text-sm text-muted-foreground">
+            初回ログイン時は管理者の承認が必要です
+          </p>
         </div>
       </div>
     </div>
